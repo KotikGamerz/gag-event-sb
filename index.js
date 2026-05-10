@@ -204,7 +204,7 @@ async function checkAllStocks() {
 
         const eggsData = await fetchEmbed(
             process.env.EGGS_CHANNEL_ID,
-            'Event Eggs Shop'
+            'Event Eggs Stock'
         );
 
         const eventsData = await fetchEmbed(
