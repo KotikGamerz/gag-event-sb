@@ -22,7 +22,7 @@ const ROLE_IDS = {
     "Honey Hive Pack": "1502942841603756164",
     "Hive Egg": "1502942925942816822",
     "Professor Bee": "1502942989390053426",
-    "Honey Birds Of Paradise": "1502943064141070517"
+    "Honey Birds of Paradise": "1502943064141070517"
 };
 
 let isChecking = false;
