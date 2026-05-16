@@ -109,52 +109,8 @@ function getPingText(items) {
 function renderItems(items) {
 
     return items
-        .map(i => `${i.raw} — ${i.count}`)
+        .map(i => `- ${i.raw} — ${i.count}`)
         .join('\n');
-}
-
-async function sendEggEmbed(eggs) {
-
-    const embed = {
-        title: "🌱 GROW A GARDEN | EVENT EGGS",
-        color: 0xffcc00,
-        description: renderItems(eggs),
-        footer: {
-            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-        },
-        timestamp: new Date().toISOString()
-    };
-
-    const pingText = getPingText(eggs);
-
-    await axios.post(process.env.WEBHOOK_URL, {
-        content: pingText || null,
-        embeds: [embed]
-    });
-
-    console.log("🥚 EVENT EGGS отправлен");
-                     }
-
-async function sendEventEmbed(events) {
-
-    const embed = {
-        title: "🌱 GROW A GARDEN | EVENT ITEMS",
-        color: 0xff8800,
-        description: renderItems(events),
-        footer: {
-            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-        },
-        timestamp: new Date().toISOString()
-    };
-
-    const pingText = getPingText(events);
-
-    await axios.post(process.env.WEBHOOK_URL, {
-        content: pingText || null,
-        embeds: [embed]
-    });
-
-    console.log("📦 EVENT ITEMS отправлен");
 }
 
 async function sendCombinedEmbed(eggs, items) {
@@ -162,21 +118,24 @@ async function sendCombinedEmbed(eggs, items) {
     const embed = {
         title: "🌱 GROW A GARDEN | EVENT STOCK",
         color: 0xff9900,
+
         fields: [
             {
-                name: "Bee Eggs",
+                name: "🥚 BEE EGGS",
                 value: renderItems(eggs),
                 inline: false
             },
             {
-                name: "Event Items",
+                name: "🍯 EVENT ITEMS",
                 value: renderItems(items),
                 inline: false
             }
         ],
+
         footer: {
             text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
         },
+
         timestamp: new Date().toISOString()
     };
 
@@ -190,7 +149,7 @@ async function sendCombinedEmbed(eggs, items) {
         embeds: [embed]
     });
 
-    console.log("📦 COMBINED EVENT STOCK отправлен");
+    console.log("📦 EVENT STOCK отправлен");
 }
 
 async function checkAllStocks() {
@@ -212,59 +171,37 @@ async function checkAllStocks() {
             'Events Stock'
         );
 
-        if (!eggsData) {
-            console.log("⏳ Нет eggsData");
+        if (!eggsData || !eventsData) {
+            console.log("⏳ Нет данных");
             return;
         }
 
         const eggs = eggsData.items;
-        const events = eventsData?.items || [];
-
-        const now = new Date();
-        const minute = now.getUTCMinutes();
+        const events = eventsData.items;
 
         const eggsUpdated =
             eggsData.messageId !== lastEggMessageId;
 
         const eventsUpdated =
-            eventsData &&
             eventsData.messageId !== lastEventMessageId;
 
-        // 🧠 COMBINED LOGIC
-        const shouldCombine =
-            (minute === 0 || minute === 30) &&
-            eggsUpdated &&
-            eventsUpdated;
+        // ничего не изменилось
+        if (!eggsUpdated && !eventsUpdated) {
 
-        // 📦 COMBINED EMBED
-        if (shouldCombine) {
-
-            lastEggMessageId = eggsData.messageId;
-            lastEventMessageId = eventsData.messageId;
-
-            await sendCombinedEmbed(
-                eggs,
-                events
-            );
+            console.log("⏸️ Сток не обновился");
 
             return;
         }
 
-        // 🥚 ONLY EGGS
-        if (eggsUpdated && !eventsUpdated) {
+        // обновляем id
+        lastEggMessageId = eggsData.messageId;
+        lastEventMessageId = eventsData.messageId;
 
-            lastEggMessageId = eggsData.messageId;
-
-            await sendEggEmbed(eggs);
-        }
-
-        // 📦 ONLY EVENTS
-        if (eventsUpdated && !eggsUpdated) {
-
-            lastEventMessageId = eventsData.messageId;
-
-            await sendEventEmbed(events);
-        }
+        // шлём единый embed
+        await sendCombinedEmbed(
+            eggs,
+            events
+        );
 
     } catch (err) {
 
