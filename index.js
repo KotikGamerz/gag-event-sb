@@ -25,10 +25,8 @@ const ROLE_IDS = {
     "Honey Birds of Paradise": "1502943064141070517"
 };
 
-let isChecking = false;
+let lastCombinedIds = '';
 
-let lastEggMessageId = null;
-let lastEventMessageId = null;
 
 function parseStockText(text) {
 
@@ -54,7 +52,7 @@ function parseStockText(text) {
     return items;
 }
 
-async function fetchEmbed(channelId, keyword) {
+async function fetchAllEmbeds(channelId) {
 
     const channel = client.channels.cache.get(channelId);
 
@@ -63,29 +61,64 @@ async function fetchEmbed(channelId, keyword) {
         return null;
     }
 
-    const messages = await channel.messages.fetch({ limit: 5 });
+    const messages = await channel.messages.fetch({ limit: 10 });
 
-    const msg = messages.find(m =>
-        m.embeds?.length > 0 &&
-        m.embeds[0].title?.includes(keyword)
-    );
+    const data = {
+        eggs: [],
+        seeds: [],
+        coin: [],
+        jelly: [],
+        ids: {
+            eggs: null,
+            seeds: null,
+            coin: null,
+            jelly: null
+        }
+    };
 
-    if (!msg) {
-        console.log(`⚠️ Embed не найден: ${keyword}`);
-        return null;
+    for (const msg of messages.values()) {
+
+        if (!msg.embeds?.length) continue;
+
+        const embed = msg.embeds[0];
+
+        const title = embed.title || '';
+
+        const text =
+            embed.description ||
+            embed.fields?.map(f => f.value).join('\n') ||
+            '';
+
+        // 🥚 EGGS
+        if (title.includes('Event Eggs Stock')) {
+
+            data.eggs = parseStockText(text);
+            data.ids.eggs = msg.id;
+        }
+
+        // 🌱 SEEDS
+        else if (title.includes('Honey Seed Shop Stock')) {
+
+            data.seeds = parseStockText(text);
+            data.ids.seeds = msg.id;
+        }
+
+        // 🪙 COIN SHOP
+        else if (title.includes('Honey Coin Shop Stock')) {
+
+            data.coin = parseStockText(text);
+            data.ids.coin = msg.id;
+        }
+
+        // 🍯 ROYAL JELLY
+        else if (title.includes('Royal Jelly Shop Stock')) {
+
+            data.jelly = parseStockText(text);
+            data.ids.jelly = msg.id;
+        }
     }
 
-    const embed = msg.embeds[0];
-
-    const text =
-        embed.description ||
-        embed.fields?.map(f => f.value).join('\n') ||
-        '';
-
-    return {
-        items: parseStockText(text),
-        messageId: msg.id
-    };
+    return data;
 }
 
 function getPingText(items) {
@@ -108,40 +141,66 @@ function getPingText(items) {
 
 function renderItems(items) {
 
+    if (!items.length) {
+        return 'Nothing today 😔';
+    }
+
     return items
         .map(i => `- ${i.raw} — ${i.count}`)
         .join('\n');
 }
 
-async function sendCombinedEmbed(eggs, items) {
+async function sendCombinedEmbed(data) {
+
+    const fields = [];
+
+    if (data.eggs.length > 0) {
+        fields.push({
+            name: "🥚 Bee Eggs",
+            value: renderItems(data.eggs),
+            inline: false
+        });
+    }
+
+    if (data.seeds.length > 0) {
+        fields.push({
+            name: "🌱 Honey Seeds",
+            value: renderItems(data.seeds),
+            inline: false
+        });
+    }
+
+    if (data.coin.length > 0) {
+        fields.push({
+            name: "🪙 Honey Coin Shop",
+            value: renderItems(data.coin),
+            inline: false
+        });
+    }
+
+    if (data.jelly.length > 0) {
+        fields.push({
+            name: "🍯 Royal Jelly Shop",
+            value: renderItems(data.jelly),
+            inline: false
+        });
+    }
 
     const embed = {
         title: "🌱 GROW A GARDEN | EVENT STOCK",
         color: 0xff9900,
-
-        fields: [
-            {
-                name: "🥚 BEE EGGS",
-                value: renderItems(eggs),
-                inline: false
-            },
-            {
-                name: "🍯 EVENT ITEMS",
-                value: renderItems(items),
-                inline: false
-            }
-        ],
-
+        fields,
         footer: {
             text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
         },
-
         timestamp: new Date().toISOString()
     };
 
     const pingText = getPingText([
-        ...eggs,
-        ...items
+        ...data.eggs,
+        ...data.seeds,
+        ...data.coin,
+        ...data.jelly
     ]);
 
     await axios.post(process.env.WEBHOOK_URL, {
@@ -161,47 +220,26 @@ async function checkAllStocks() {
 
         console.log("🔄 Проверка event stock...");
 
-        const eggsData = await fetchEmbed(
-            process.env.EGGS_CHANNEL_ID,
-            'Event Eggs Stock'
+        const data = await fetchAllEmbeds(
+            process.env.EVENTS_CHANNEL_ID
         );
 
-        const eventsData = await fetchEmbed(
-            process.env.EVENTS_CHANNEL_ID,
-            'Events Stock'
-        );
-
-        if (!eggsData || !eventsData) {
-            console.log("⏳ Нет данных");
+        if (!data) {
+            console.log("❌ Нет данных");
             return;
         }
 
-        const eggs = eggsData.items;
-        const events = eventsData.items;
+        const currentIds =
+            JSON.stringify(data.ids);
 
-        const eggsUpdated =
-            eggsData.messageId !== lastEggMessageId;
-
-        const eventsUpdated =
-            eventsData.messageId !== lastEventMessageId;
-
-        // ничего не изменилось
-        if (!eggsUpdated && !eventsUpdated) {
-
-            console.log("⏸️ Сток не обновился");
-
+        if (currentIds === lastCombinedIds) {
+            console.log("⏸️ Уже обработано");
             return;
         }
 
-        // обновляем id
-        lastEggMessageId = eggsData.messageId;
-        lastEventMessageId = eventsData.messageId;
+        lastCombinedIds = currentIds;
 
-        // шлём единый embed
-        await sendCombinedEmbed(
-            eggs,
-            events
-        );
+        await sendCombinedEmbed(data);
 
     } catch (err) {
 
