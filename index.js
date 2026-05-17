@@ -25,6 +25,8 @@ const ROLE_IDS = {
     "Honey Birds of Paradise": "1502943064141070517"
 };
 
+let isChecking = false;
+
 let lastCombinedIds = '';
 
 
