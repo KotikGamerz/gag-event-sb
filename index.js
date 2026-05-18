@@ -305,10 +305,12 @@ function startSmartScheduler() {
 
         console.log(`⏱️ Следующая проверка через ${delay / 1000}s`);
 
-        setTimeout(async () => {
+        setTimeout(() => {
 
-            await checkAllStocks();
-            scheduleNext();
+            checkAllStocks()
+                .finally(() => {
+                    scheduleNext();
+            });
 
         }, delay);
     };
