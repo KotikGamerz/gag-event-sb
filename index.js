@@ -78,7 +78,13 @@ async function fetchAllEmbeds(channelId) {
         }
     };
 
-    for (const msg of messages.values()) {
+    const sortedMessages =
+        [...messages.values()]
+        .sort((a, b) =>
+            b.createdTimestamp - a.createdTimestamp
+        );
+
+    for (const msg of sortedMessages) {
 
         if (!msg.embeds?.length) continue;
 
@@ -92,31 +98,52 @@ async function fetchAllEmbeds(channelId) {
             '';
 
         // 🥚 EGGS
-        if (title.includes('Event Eggs Stock')) {
+        if (title.includes('Event Eggs Stock') &&
+            data.eggs.length === 0
+        ) {
 
             data.eggs = parseStockText(text);
             data.ids.eggs = msg.id;
         }
 
         // 🌱 SEEDS
-        else if (title.includes('Honey Seed Shop Stock')) {
+        else if (title.includes('Honey Seed Shop Stock') &&
+            data.seeds.length === 0
+        ) {
 
             data.seeds = parseStockText(text);
             data.ids.seeds = msg.id;
         }
 
         // 🪙 COIN SHOP
-        else if (title.includes('Honey Coin Shop Stock')) {
+        else if (title.includes('Honey Coin Shop Stock') &&
+            data.coin.length === 0
+        ) {
 
-            data.coin = parseStockText(text);
-            data.ids.coin = msg.id;
+            const age =
+                Date.now() - msg.createdTimestamp;
+
+            // живёт только 5 минут
+            if (age < 5 * 60 * 1000) {
+
+                data.coin = parseStockText(text);
+                data.ids.coin = msg.id;
+            }
         }
 
         // 🍯 ROYAL JELLY
-        else if (title.includes('Royal Jelly Shop Stock')) {
+        else if (title.includes('Royal Jelly Shop Stock') &&
+            data.jelly.length === 0
+        ) {
 
-            data.jelly = parseStockText(text);
-            data.ids.jelly = msg.id;
+            const age =
+                Date.now() - msg.createdTimestamp;
+
+            if (age < 5 * 60 * 1000) {
+
+                data.jelly = parseStockText(text);
+                data.ids.jelly = msg.id;
+            }
         }
     }
 
@@ -231,15 +258,22 @@ async function checkAllStocks() {
             return;
         }
 
-        const currentIds =
-            JSON.stringify(data.ids);
+        const currentState = JSON.stringify({
+            eggs: data.eggs,
+            seeds: data.seeds,
+            coin: data.coin,
+            jelly: data.jelly
+        });
 
-        if (currentIds === lastCombinedIds) {
+        if (currentState === lastCombinedIds) {
+
             console.log("⏸️ Уже обработано");
             return;
         }
 
-        lastCombinedIds = currentIds;
+        lastCombinedIds = currentState;
+
+        await sendCombinedEmbed(data);
 
         await sendCombinedEmbed(data);
 
