@@ -275,8 +275,6 @@ async function checkAllStocks() {
 
         await sendCombinedEmbed(data);
 
-        await sendCombinedEmbed(data);
-
     } catch (err) {
 
         console.error("❌ Ошибка:", err.message);
