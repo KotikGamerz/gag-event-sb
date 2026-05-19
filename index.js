@@ -258,15 +258,9 @@ async function checkAllStocks() {
             return;
         }
 
-        const currentState = JSON.stringify({
-            eggs: data.eggs,
-            seeds: data.seeds,
-            coin: data.coin,
-            jelly: data.jelly
-        });
+        const currentState = JSON.stringify(data.ids);
 
         if (currentState === lastCombinedIds) {
-
             console.log("⏸️ Уже обработано");
             return;
         }
