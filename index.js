@@ -29,6 +29,7 @@ const ROLE_IDS = {
 let isChecking = false;
 
 let lastCombinedIds = '';
+let lastGag2CombinedIds = '';
 
 
 function parseStockText(text) {
@@ -64,7 +65,7 @@ async function fetchAllEmbeds(channelId) {
         return null;
     }
 
-    const messages = await channel.messages.fetch({ limit: 10 });
+    const messages = await channel.messages.fetch({ limit: 3 });
 
     const data = {
         eggs: [],
@@ -149,6 +150,65 @@ async function fetchAllEmbeds(channelId) {
     }
 
     return data;
+}
+
+async function fetchGag2Stocks() {
+
+    const result = {
+        seeds: [],
+        gear: [],
+        props: [],
+        ids: {
+            seeds: null,
+            gear: null,
+            props: null
+        }
+    };
+
+    const channels = {
+        seeds: client.channels.cache.get("1511902092372213832"),
+        gear: client.channels.cache.get("1511902177067794532"),
+        props: client.channels.cache.get("1515033494307209313")
+    };
+
+    for (const [type, channel] of Object.entries(channels)) {
+
+        if (!channel) {
+            console.log(`❌ GAG2 канал не найден: ${type}`);
+            continue;
+        }
+
+        const messages =
+            await channel.messages.fetch({ limit: 3 });
+
+        const msg =
+            messages
+                .sort(
+                    (a, b) =>
+                    b.createdTimestamp -
+                    a.createdTimestamp
+                )
+                .first();
+
+        if (!msg || !msg.embeds?.length)
+            continue;
+
+        const embed = msg.embeds[0];
+
+        const text =
+            embed.description ||
+            embed.fields?.map(f => f.value).join('\n') ||
+            '';
+
+        result[type] = parseStockText(
+            text
+                .replace(/•/g, '')
+        );
+
+        result.ids[type] = msg.id;
+    }
+
+    return result;
 }
 
 function getPingText(items) {
@@ -241,6 +301,54 @@ async function sendCombinedEmbed(data) {
     console.log("📦 EVENT STOCK отправлен");
 }
 
+async function sendGag2Embed(data) {
+
+    const fields = [];
+
+    if (data.seeds.length > 0) {
+        fields.push({
+            name: "🌾 SEEDS",
+            value: renderItems(data.seeds),
+            inline: false
+        });
+    }
+
+    if (data.gear.length > 0) {
+        fields.push({
+            name: "⚙️ GEAR",
+            value: renderItems(data.gear),
+            inline: false
+        });
+    }
+
+    if (data.props.length > 0) {
+        fields.push({
+            name: "📦 PROPS",
+            value: renderItems(data.props),
+            inline: false
+        });
+    }
+
+    const embed = {
+        title: "🌱 GROW A GARDEN 2 | STOCK",
+        color: 0x00ff88,
+        fields,
+        footer: {
+            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: new Date().toISOString()
+    };
+
+    await axios.post(
+        process.env.GAG2_WEBHOOK_URL,
+        {
+            embeds: [embed]
+        }
+    );
+
+    console.log("📦 GAG2 STOCK отправлен");
+}
+
 async function checkAllStocks() {
 
     if (isChecking) return;
@@ -280,6 +388,53 @@ async function checkAllStocks() {
     }
 }
 
+async function checkGag2Stocks() {
+
+    try {
+
+        console.log("🌱 Проверка GAG2...");
+
+        const data =
+            await fetchGag2Stocks();
+
+        if (
+            !data.ids.seeds &&
+            !data.ids.gear &&
+            !data.ids.props
+        ) {
+            console.log("❌ GAG2 данных нет");
+            return;
+        }
+
+        const currentState =
+            JSON.stringify(data.ids);
+
+        if (
+            currentState ===
+            lastGag2CombinedIds
+        ) {
+
+            console.log(
+                "⏸️ GAG2 уже обработан"
+            );
+
+            return;
+        }
+
+        lastGag2CombinedIds =
+            currentState;
+
+        await sendGag2Embed(data);
+
+    } catch (err) {
+
+        console.error(
+            "❌ GAG2 ошибка:",
+            err.message
+        );
+    }
+}
+
 function startSmartScheduler() {
 
     const scheduleNext = () => {
@@ -300,9 +455,12 @@ function startSmartScheduler() {
 
         setTimeout(() => {
 
-            checkAllStocks()
-                .finally(() => {
-                    scheduleNext();
+            Promise.all([
+                checkAllStocks(),
+                checkGag2Stocks()
+            ])
+            .finally(() => {
+                scheduleNext();
             });
 
         }, delay);
