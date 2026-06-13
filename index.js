@@ -26,6 +26,46 @@ const ROLE_IDS = {
     "Honey Birds of Paradise": "1502943064141070517"
 };
 
+const GAG2_ROLE_IDS = {
+    // 🌾 SEEDS
+    "Dragon Fruit": "1515314576009334865",
+    "Acorn": "1515315023990362172",
+    "Cherry": "1515315150171930716",
+    "Sunflower": "1515315202344747048",
+    "Venus Fly Trap": "1515315936570114098",
+    "Pomegranate": "1515316156003647610",
+    "Poison Apple": "1515316389106290860",
+    "Moon Bloom": "1515316520539000924",
+    "Dragon's Breath": "1515316706254393434",
+
+    // ⚙️ GEAR
+    "Rare Sprinkler": "1515317503600103424",
+    "Jump Mushroom": "1515317617177657477",
+    "Speed Mushroom": "1515317753261854881",
+    "Shrink Mushroom": "1515317882760859648",
+    "Supersize Mushroom": "1515318035920195686",
+    "Gnome": "1515318180569026570",
+    "Flashbang": "1515318294574399610",
+    "Basic Pot": "1515318480172224654",
+    "Legendary Sprinkler": "1515321652450427001",
+    "Invisibility Mushroom": "1515321812857131118",
+    "Teleporter": "1515321959070830733",
+    "Wheelbarrow": "1515322332489584791",
+    "Super Watering Can": "1515485069991608532",
+    "Super Sprinkler": "1515485174375125103",
+
+    // 📦 PROPS
+    "Roleplay Crate": "1515486757469294834",
+    "Bridge Crate": "1515486884749377606",
+    "Spring Crate": "1515487002747863050",
+    "Seesaw Crate": "1515487109497094325",
+    "Conveyor Crate": "1515487256347934730",
+    "Owner Door Crate": "1515487376129134622",
+    "Bear Trap Crate": "1515487489161429042",
+    "Fence Crate": "1515487616429064342",
+    "Teleporter Pad Crate": "1515487722049896598"
+};
+
 let isChecking = false;
 
 let lastCombinedIds = '';
@@ -229,6 +269,30 @@ function getPingText(items) {
     return [...new Set(pings)].join(' ');
 }
 
+function getGag2PingText(data) {
+
+    const pings = [];
+
+    const allItems = [
+        ...data.seeds,
+        ...data.gear,
+        ...data.props
+    ];
+
+    for (const item of allItems) {
+
+        const cleanName = item.raw
+            .replace(/^[^\p{L}]+/u, '')
+            .trim();
+
+        if (GAG2_ROLE_IDS[cleanName]) {
+            pings.push(`<@&${GAG2_ROLE_IDS[cleanName]}>`);
+        }
+    }
+
+    return [...new Set(pings)].join(' ');
+}
+
 function renderItems(items) {
 
     if (!items.length) {
@@ -339,9 +403,12 @@ async function sendGag2Embed(data) {
         timestamp: new Date().toISOString()
     };
 
+    const pingText = getGag2PingText(data);
+
     await axios.post(
         process.env.GAG2_WEBHOOK_URL,
         {
+            content: pingText || null,
             embeds: [embed]
         }
     );
