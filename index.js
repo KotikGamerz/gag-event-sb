@@ -105,7 +105,7 @@ async function fetchAllEmbeds(channelId) {
         return null;
     }
 
-    const messages = await channel.messages.fetch({ limit: 3 });
+    const messages = await channel.messages.fetch({ limit: 7 });
 
     const data = {
         eggs: [],
