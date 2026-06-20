@@ -35,6 +35,7 @@ const GAG2_ROLE_IDS = {
     "Venus Fly Trap": "1515315936570114098",
     "Pomegranate": "1515316156003647610",
     "Poison Apple": "1515316389106290860",
+    "Venom Spitter": "1517764903685853214",
     "Moon Bloom": "1515316520539000924",
     "Dragon's Breath": "1515316706254393434",
 
