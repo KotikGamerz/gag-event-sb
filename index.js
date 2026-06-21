@@ -97,6 +97,33 @@ function parseStockText(text) {
     return items;
 }
 
+async function sendToWebhooks(payload) {
+
+    const webhookUrls = [
+        process.env.WEBHOOK_URL,
+        process.env.KIRO_WEBHOOK_URL
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(
+        webhookUrls.map(url =>
+            axios.post(url, payload)
+        )
+    );
+
+    results.forEach((result, index) => {
+
+        if (result.status === 'fulfilled') {
+            console.log(`✅ Webhook #${index + 1} отправлен`);
+        } else {
+            console.error(
+                `❌ Webhook #${index + 1} ошибка:`,
+                result.reason?.message
+            );
+        }
+
+    });
+}
+
 async function fetchAllEmbeds(channelId) {
 
     const channel = client.channels.cache.get(channelId);
@@ -358,7 +385,7 @@ async function sendCombinedEmbed(data) {
         ...data.jelly
     ]);
 
-    await axios.post(process.env.WEBHOOK_URL, {
+    await sendToWebhooks({
         content: pingText || null,
         embeds: [embed]
     });
