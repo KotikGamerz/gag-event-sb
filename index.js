@@ -97,15 +97,10 @@ function parseStockText(text) {
     return items;
 }
 
-async function sendToWebhooks(payload) {
-
-    const webhookUrls = [
-        process.env.WEBHOOK_URL,
-        process.env.KIRO_WEBHOOK_URL
-    ].filter(Boolean);
+async function sendToWebhooks(payload, urls) {
 
     const results = await Promise.allSettled(
-        webhookUrls.map(url =>
+        urls.filter(Boolean).map(url =>
             axios.post(url, payload)
         )
     );
@@ -385,10 +380,16 @@ async function sendCombinedEmbed(data) {
         ...data.jelly
     ]);
 
-    await sendToWebhooks({
-        content: pingText || null,
-        embeds: [embed]
-    });
+    await sendToWebhooks(
+        {
+            content: pingText || null,
+            embeds: [embed]
+        },
+        [
+            process.env.WEBHOOK_URL,
+            process.env.KIRO_WEBHOOK_URL
+        ]
+    );
 
     console.log("📦 EVENT STOCK отправлен");
 }
@@ -433,12 +434,15 @@ async function sendGag2Embed(data) {
 
     const pingText = getGag2PingText(data);
 
-    await axios.post(
-        process.env.GAG2_WEBHOOK_URL,
+    await sendToWebhooks(
         {
             content: pingText || null,
             embeds: [embed]
-        }
+        },
+        [
+            process.env.GAG2_WEBHOOK_URL,
+            process.env.KIRO_GAG2_WEBHOOK_URL
+        ]
     );
 
     console.log("📦 GAG2 STOCK отправлен");
