@@ -72,6 +72,11 @@ let isChecking = false;
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
 
+let lastSummerSeedMessageId = '';
+
+const ENABLE_SUMMER_SEEDS =
+    process.env.ENABLE_SUMMER_SEEDS !== 'false';
+
 
 function parseStockText(text) {
 
@@ -274,6 +279,49 @@ async function fetchGag2Stocks() {
     return result;
 }
 
+async function fetchSummerSeedStock() {
+
+    const channel = client.channels.cache.get(
+        process.env.SUMMER_SEED_CHANNEL_ID
+    );
+
+    if (!channel) {
+        console.log("❌ Summer Seed канал не найден");
+        return null;
+    }
+
+    const messages = await channel.messages.fetch({ limit: 5 });
+
+    const sorted = [...messages.values()]
+        .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+    const msg = sorted.find(m =>
+        m.embeds?.length > 0 &&
+        (m.embeds[0].title || "")
+            .toLowerCase()
+            .includes("summer seed shop stock")
+        );
+
+    if (!msg) {
+        console.log("⚠️ Summer Seed embed не найден");
+        return null;
+    }
+
+    const embed = msg.embeds[0];
+
+    const text =
+        embed.description ||
+        embed.fields?.map(f => f.value).join('\n') ||
+        '';
+
+    const items = parseStockText(text);
+
+    return {
+        items,
+        messageId: msg.id
+    };
+}
+
 function getPingText(items) {
 
     const pings = [];
@@ -448,6 +496,37 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
+async function sendSummerSeedEmbed(items) {
+
+    const embed = {
+        title: "☀️ GROW A GARDEN | SUMMER SEED SHOP STOCK",
+        color: 0xff6b6b,
+        fields: [
+            {
+                name: "🌱 SEEDS",
+                value: renderItems(items),
+                inline: false
+            }
+        ],
+        footer: {
+            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: new Date().toISOString()
+    };
+
+    await sendToWebhooks(
+        {
+            embeds: [embed]
+        },
+        [
+            process.env.SUMMER_SEED_WEBHOOK_URL,
+            process.env.KIRO_SUMMER_SEED_WEBHOOK_URL
+        ]
+    );
+
+    console.log("☀️ SUMMER SEED STOCK отправлен");
+}
+
 async function checkAllStocks() {
 
     if (isChecking) return;
@@ -534,6 +613,33 @@ async function checkGag2Stocks() {
     }
 }
 
+async function checkSummerSeedStock() {
+
+    try {
+
+        console.log("☀️ Проверка Summer Seed Stock...");
+
+        const data = await fetchSummerSeedStock();
+
+        if (!data || !data.items.length) {
+            console.log("❌ Summer Seed данных нет");
+            return;
+        }
+
+        if (data.messageId === lastSummerSeedMessageId) {
+            console.log("⏸️ Summer Seed уже обработан");
+            return;
+        }
+
+        lastSummerSeedMessageId = data.messageId;
+
+        await sendSummerSeedEmbed(data.items);
+
+    } catch (err) {
+        console.error("❌ Summer Seed ошибка:", err.message);
+    }
+}
+
 function startSmartScheduler() {
 
     const scheduleNext = () => {
@@ -556,7 +662,10 @@ function startSmartScheduler() {
 
             Promise.all([
                 checkAllStocks(),
-                checkGag2Stocks()
+                checkGag2Stocks(),
+                ENABLE_SUMMER_SEEDS
+                    ? checkSummerSeedStock()
+                    : Promise.resolve()
             ])
             .finally(() => {
                 scheduleNext();
