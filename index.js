@@ -26,6 +26,15 @@ const ROLE_IDS = {
     "Honey Birds of Paradise": "1502943064141070517"
 };
 
+const SUMMER_SEED_ROLE_IDS = {
+    "Pineapple": "1523279993948602388",
+    "Kiwi": "1523280442529419354",
+    "Bell Pepper": "1523280449261015163",
+    "Loquat": "1523280451202973816",
+    "Feijoa": "1523280453321359402",
+    "Pitcher Plant": "1523280996454371378"
+};
+
 const GAG2_ROLE_IDS = {
     // 🌾 SEEDS
     "Dragon Fruit": "1515314576009334865",
@@ -364,6 +373,24 @@ function getGag2PingText(data) {
     return [...new Set(pings)].join(' ');
 }
 
+function getSummerSeedPingText(items) {
+
+    const pings = [];
+
+    for (const item of items) {
+
+        const cleanName = item.raw
+            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            .trim();
+
+        if (SUMMER_SEED_ROLE_IDS[cleanName]) {
+            pings.push(`<@&${SUMMER_SEED_ROLE_IDS[cleanName]}>`);
+        }
+    }
+
+    return [...new Set(pings)].join(' ');
+}
+
 function renderItems(items) {
 
     if (!items.length) {
@@ -514,8 +541,11 @@ async function sendSummerSeedEmbed(items) {
         timestamp: new Date().toISOString()
     };
 
+    const pingText = getSummerSeedPingText(items);
+
     await sendToWebhooks(
         {
+            content: pingText || null,
             embeds: [embed]
         },
         [
