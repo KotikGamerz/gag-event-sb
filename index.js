@@ -734,12 +734,17 @@ async function checkSummerSeedStock() {
 
         lastSummerSeedMessageId = summer.messageId;
 
-        if (tide)
+        if (tide) {
             lastTideTokenMessageId = tide.messageId;
+        }
+
+        const tideItemsToSend = tideChanged
+            ? tide.items
+            : [];
 
         await sendSummerSeedEmbed(
             summer.items,
-            tide?.items || []
+            tideItemsToSend
         );
 
     } catch (err) {
