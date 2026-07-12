@@ -575,7 +575,7 @@ async function sendSummerSeedEmbed(
 ) {
 
     const embed = {
-        title: "☀️ GROW A GARDEN | SUMMER SEED SHOP STOCK",
+        title: "☀️ GROW A GARDEN | SUMMER EVENT STOCK",
         color: 0xff6b6b,
         fields: [],
         footer: {
