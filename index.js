@@ -32,7 +32,11 @@ const SUMMER_SEED_ROLE_IDS = {
     "Bell Pepper": "1523280449261015163",
     "Loquat": "1523280451202973816",
     "Feijoa": "1523280453321359402",
-    "Pitcher Plant": "1523280996454371378"
+    "Pitcher Plant": "1523280996454371378",
+    "Drippy Delight": "1525850162679779458",
+    "Sea Urchin": "1525850042781667549",
+    "Tidal Walrus": "1525850255608778752",
+    "Large Toy": "1525850375264141542"
 };
 
 const GAG2_ROLE_IDS = {
@@ -82,6 +86,7 @@ let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
 
 let lastSummerSeedMessageId = '';
+let lastTideTokenMessageId = '';
 
 const ENABLE_SUMMER_SEEDS =
     process.env.ENABLE_SUMMER_SEEDS !== 'false';
@@ -227,6 +232,47 @@ async function fetchAllEmbeds(channelId) {
     }
 
     return data;
+}
+
+async function fetchTideTokenStock() {
+
+    const channel = client.channels.cache.get(
+        process.env.SUMMER_SEED_CHANNEL_ID
+    );
+
+    if (!channel) {
+        console.log("❌ Tide Token канал не найден");
+        return null;
+    }
+
+    const messages = await channel.messages.fetch({ limit: 5 });
+
+    const sorted = [...messages.values()]
+        .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+    const msg = sorted.find(m =>
+        m.embeds?.length > 0 &&
+        (m.embeds[0].title || "")
+            .toLowerCase()
+            .includes("tide token shop stock")
+    );
+
+    if (!msg) {
+        console.log("ℹ️ Tide Token магазина сейчас нет");
+        return null;
+    }
+
+    const embed = msg.embeds[0];
+
+    const text =
+        embed.description ||
+        embed.fields?.map(f => f.value).join('\n') ||
+        '';
+
+    return {
+        items: parseStockText(text),
+        messageId: msg.id
+    };
 }
 
 async function fetchGag2Stocks() {
@@ -523,25 +569,41 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
-async function sendSummerSeedEmbed(items) {
+async function sendSummerSeedEmbed(
+    summerItems,
+    tideItems = []
+) {
 
     const embed = {
         title: "☀️ GROW A GARDEN | SUMMER SEED SHOP STOCK",
         color: 0xff6b6b,
-        fields: [
-            {
-                name: "🌱 SEEDS",
-                value: renderItems(items),
-                inline: false
-            }
-        ],
+        fields: [],
         footer: {
             text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
         },
         timestamp: new Date().toISOString()
     };
 
-    const pingText = getSummerSeedPingText(items);
+    embed.fields.push({
+        name: "🌱 SEEDS",
+        value: renderItems(summerItems),
+        inline: false
+    });
+
+    if (tideItems.length) {
+
+        embed.fields.push({
+            name: "🌊 TIDE TOKENS",
+            value: renderItems(tideItems),
+            inline: false
+        });
+
+    }
+
+    const pingText = getSummerSeedPingText([
+        ...summerItems,
+        ...tideItems
+    ]);
 
     await sendToWebhooks(
         {
@@ -649,25 +711,46 @@ async function checkSummerSeedStock() {
 
         console.log("☀️ Проверка Summer Seed Stock...");
 
-        const data = await fetchSummerSeedStock();
+        const summer = await fetchSummerSeedStock();
+        const tide = await fetchTideTokenStock();
 
-        if (!data || !data.items.length) {
+        if (!summer || !summer.items.length) {
             console.log("❌ Summer Seed данных нет");
             return;
         }
 
-        if (data.messageId === lastSummerSeedMessageId) {
-            console.log("⏸️ Summer Seed уже обработан");
+        const summerChanged =
+            summer.messageId !== lastSummerSeedMessageId;
+
+        const tideChanged =
+            tide
+                ? tide.messageId !== lastTideTokenMessageId
+                : false;
+
+        if (!summerChanged && !tideChanged) {
+            console.log("⏸️ Summer/Tide уже обработан");
             return;
         }
 
-        lastSummerSeedMessageId = data.messageId;
+        lastSummerSeedMessageId = summer.messageId;
 
-        await sendSummerSeedEmbed(data.items);
+        if (tide)
+            lastTideTokenMessageId = tide.messageId;
+
+        await sendSummerSeedEmbed(
+            summer.items,
+            tide?.items || []
+        );
 
     } catch (err) {
-        console.error("❌ Summer Seed ошибка:", err.message);
+
+        console.error(
+            "❌ Summer Seed ошибка:",
+            err.message
+        );
+
     }
+
 }
 
 function startSmartScheduler() {
