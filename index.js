@@ -770,7 +770,7 @@ function startSmartScheduler() {
 
         let targetSecond;
 
-        if (seconds < 20) targetSecond = 20;
+        if (seconds < 30) targetSecond = 30;
         else if (seconds < 50) targetSecond = 50;
         else targetSecond = 80;
 
