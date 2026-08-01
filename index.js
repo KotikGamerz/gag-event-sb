@@ -26,19 +26,6 @@ const ROLE_IDS = {
     "Honey Birds of Paradise": "1502943064141070517"
 };
 
-const SUMMER_SEED_ROLE_IDS = {
-    "Pineapple": "1523279993948602388",
-    "Kiwi": "1523280442529419354",
-    "Bell Pepper": "1523280449261015163",
-    "Loquat": "1523280451202973816",
-    "Feijoa": "1523280453321359402",
-    "Pitcher Plant": "1523280996454371378",
-    "Drippy Delight": "1525850162679779458",
-    "Sea Urchin": "1525850042781667549",
-    "Tidal Walrus": "1525850255608778752",
-    "Large Toy": "1525850375264141542"
-};
-
 const GAG2_ROLE_IDS = {
     // 🌾 SEEDS
     "Dragon Fruit": "1515314576009334865",
@@ -88,11 +75,10 @@ let isChecking = false;
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
 
-let lastSummerSeedMessageId = '';
-let lastTideTokenMessageId = '';
+let lastMoonShopMessageId = '';
 
-const ENABLE_SUMMER_SEEDS =
-    process.env.ENABLE_SUMMER_SEEDS !== 'false';
+const ENABLE_MOON_SHOP =
+    process.env.ENABLE_MOON_SHOP !== 'false';
 
 
 function parseStockText(text) {
@@ -237,31 +223,37 @@ async function fetchAllEmbeds(channelId) {
     return data;
 }
 
-async function fetchTideTokenStock() {
+async function fetchMoonShopStock() {
 
     const channel = client.channels.cache.get(
-        process.env.SUMMER_SEED_CHANNEL_ID
+        process.env.MOON_SHOP_CHANNEL_ID
     );
 
     if (!channel) {
-        console.log("❌ Tide Token канал не найден");
+        console.log("❌ Moon Shop канал не найден");
         return null;
     }
 
-    const messages = await channel.messages.fetch({ limit: 5 });
+    const messages = await channel.messages.fetch({
+        limit: 5
+    });
 
     const sorted = [...messages.values()]
-        .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+        .sort(
+            (a, b) =>
+                b.createdTimestamp -
+                a.createdTimestamp
+        );
 
     const msg = sorted.find(m =>
         m.embeds?.length > 0 &&
         (m.embeds[0].title || "")
             .toLowerCase()
-            .includes("tide token shop stock")
+            .includes("moon coin shop stock")
     );
 
     if (!msg) {
-        console.log("ℹ️ Tide Token магазина сейчас нет");
+        console.log("⚠️ Moon Coin Shop Stock embed не найден");
         return null;
     }
 
@@ -272,8 +264,10 @@ async function fetchTideTokenStock() {
         embed.fields?.map(f => f.value).join('\n') ||
         '';
 
+    const items = parseStockText(text);
+
     return {
-        items: parseStockText(text),
+        items,
         messageId: msg.id
     };
 }
@@ -337,49 +331,6 @@ async function fetchGag2Stocks() {
     return result;
 }
 
-async function fetchSummerSeedStock() {
-
-    const channel = client.channels.cache.get(
-        process.env.SUMMER_SEED_CHANNEL_ID
-    );
-
-    if (!channel) {
-        console.log("❌ Summer Seed канал не найден");
-        return null;
-    }
-
-    const messages = await channel.messages.fetch({ limit: 5 });
-
-    const sorted = [...messages.values()]
-        .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-
-    const msg = sorted.find(m =>
-        m.embeds?.length > 0 &&
-        (m.embeds[0].title || "")
-            .toLowerCase()
-            .includes("summer seed shop stock")
-        );
-
-    if (!msg) {
-        console.log("⚠️ Summer Seed embed не найден");
-        return null;
-    }
-
-    const embed = msg.embeds[0];
-
-    const text =
-        embed.description ||
-        embed.fields?.map(f => f.value).join('\n') ||
-        '';
-
-    const items = parseStockText(text);
-
-    return {
-        items,
-        messageId: msg.id
-    };
-}
-
 function getPingText(items) {
 
     const pings = [];
@@ -416,24 +367,6 @@ function getGag2PingText(data) {
 
         if (GAG2_ROLE_IDS[cleanName]) {
             pings.push(`<@&${GAG2_ROLE_IDS[cleanName]}>`);
-        }
-    }
-
-    return [...new Set(pings)].join(' ');
-}
-
-function getSummerSeedPingText(items) {
-
-    const pings = [];
-
-    for (const item of items) {
-
-        const cleanName = item.raw
-            .replace(/[^\p{L}\p{N}\s]/gu, '')
-            .trim();
-
-        if (SUMMER_SEED_ROLE_IDS[cleanName]) {
-            pings.push(`<@&${SUMMER_SEED_ROLE_IDS[cleanName]}>`);
         }
     }
 
@@ -572,54 +505,31 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
-async function sendSummerSeedEmbed(
-    summerItems,
-    tideItems = []
-) {
+async function sendMoonShopEmbed(items) {
+
+    const now = new Date();
 
     const embed = {
-        title: "☀️ GROW A GARDEN | SUMMER EVENT STOCK",
-        color: 0xff6b6b,
-        fields: [],
+        title: "🌕 GROW A GARDEN | MOON SHOP STOCK",
+        color: 0x5865f2,
+        description: renderItems(items),
         footer: {
-            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
+            text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
         },
-        timestamp: new Date().toISOString()
+        timestamp: now.toISOString()
     };
-
-    embed.fields.push({
-        name: "🌱 SEEDS",
-        value: renderItems(summerItems),
-        inline: false
-    });
-
-    if (tideItems.length) {
-
-        embed.fields.push({
-            name: "🌊 TIDE TOKENS",
-            value: renderItems(tideItems),
-            inline: false
-        });
-
-    }
-
-    const pingText = getSummerSeedPingText([
-        ...summerItems,
-        ...tideItems
-    ]);
 
     await sendToWebhooks(
         {
-            content: pingText || null,
             embeds: [embed]
         },
         [
-            process.env.SUMMER_SEED_WEBHOOK_URL,
-            process.env.KIRO_SUMMER_SEED_WEBHOOK_URL
+            process.env.MOON_SHOP_WEBHOOK_URL,
+            process.env.KIRO_MOON_SHOP_WEBHOOK_URL
         ]
     );
 
-    console.log("☀️ SUMMER SEED STOCK отправлен");
+    console.log("🌕 MOON SHOP STOCK отправлен");
 }
 
 async function checkAllStocks() {
@@ -708,57 +618,46 @@ async function checkGag2Stocks() {
     }
 }
 
-async function checkSummerSeedStock() {
+async function checkMoonShopStock() {
 
     try {
 
-        console.log("☀️ Проверка Summer Seed Stock...");
+        console.log("🌕 Проверка Moon Shop Stock...");
 
-        const summer = await fetchSummerSeedStock();
-        const tide = await fetchTideTokenStock();
+        const moon = await fetchMoonShopStock();
 
-        if (!summer || !summer.items.length) {
-            console.log("❌ Summer Seed данных нет");
+        if (!moon || !moon.items.length) {
+            console.log("❌ Moon Shop данных нет");
             return;
         }
 
-        const summerChanged =
-            summer.messageId !== lastSummerSeedMessageId;
-
-        const tideChanged =
-            tide
-                ? tide.messageId !== lastTideTokenMessageId
-                : false;
-
-        if (!summerChanged && !tideChanged) {
-            console.log("⏸️ Summer/Tide уже обработан");
+        if (
+            moon.messageId ===
+            lastMoonShopMessageId
+        ) {
+            console.log("⏸️ Moon Shop уже обработан");
             return;
         }
 
-        lastSummerSeedMessageId = summer.messageId;
+        lastMoonShopMessageId =
+            moon.messageId;
 
-        if (tide) {
-            lastTideTokenMessageId = tide.messageId;
-        }
+        console.log(
+            `🌕 Новый Moon Shop: ${moon.items.length} предмет(а)`
+        );
 
-        const tideItemsToSend = tideChanged
-            ? tide.items
-            : [];
-
-        await sendSummerSeedEmbed(
-            summer.items,
-            tideItemsToSend
+        await sendMoonShopEmbed(
+            moon.items
         );
 
     } catch (err) {
 
         console.error(
-            "❌ Summer Seed ошибка:",
+            "❌ Moon Shop ошибка:",
             err.message
         );
 
     }
-
 }
 
 function startSmartScheduler() {
@@ -784,8 +683,8 @@ function startSmartScheduler() {
             Promise.all([
                 checkAllStocks(),
                 checkGag2Stocks(),
-                ENABLE_SUMMER_SEEDS
-                    ? checkSummerSeedStock()
+                ENABLE_MOON_SHOP
+                    ? checkMoonShopStock()
                     : Promise.resolve()
             ])
             .finally(() => {
