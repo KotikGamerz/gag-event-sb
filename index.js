@@ -74,7 +74,7 @@ let isChecking = false;
 
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
-
+let lastFallCombinedIds = '';
 let lastMoonShopMessageId = '';
 
 const ENABLE_MOON_SHOP =
@@ -331,6 +331,75 @@ async function fetchGag2Stocks() {
     return result;
 }
 
+async function fetchFallStocks() {
+
+    const result = {
+        seeds: [],
+        gear: [],
+        props: [],
+        ids: {
+            seeds: null,
+            gear: null,
+            props: null
+        }
+    };
+
+    const channels = {
+        seeds: client.channels.cache.get(
+            process.env.FALL_SEEDS_CHANNEL_ID
+        ),
+        gear: client.channels.cache.get(
+            process.env.FALL_GEAR_CHANNEL_ID
+        ),
+        props: client.channels.cache.get(
+            process.env.FALL_PROPS_CHANNEL_ID
+        )
+    };
+
+    for (const [type, channel] of Object.entries(channels)) {
+
+        if (!channel) {
+            console.log(`❌ FALL канал не найден: ${type}`);
+            continue;
+        }
+
+        const messages =
+            await channel.messages.fetch({ limit: 3 });
+
+        const sorted =
+            [...messages.values()]
+                .sort(
+                    (a, b) =>
+                        b.createdTimestamp -
+                        a.createdTimestamp
+                );
+
+        const msg = sorted.find(m =>
+            m.embeds?.length > 0
+        );
+
+        if (!msg) {
+            console.log(`⚠️ FALL ${type}: embed не найден`);
+            continue;
+        }
+
+        const embed = msg.embeds[0];
+
+        const text =
+            embed.description ||
+            embed.fields?.map(f => f.value).join('\n') ||
+            '';
+
+        result[type] = parseStockText(
+            text.replace(/•/g, '')
+        );
+
+        result.ids[type] = msg.id;
+    }
+
+    return result;
+}
+
 function getPingText(items) {
 
     const pings = [];
@@ -505,6 +574,59 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
+async function sendFallEmbed(data) {
+
+    const fields = [];
+
+    if (data.seeds.length > 0) {
+        fields.push({
+            name: "🌾 FALL SEEDS",
+            value: renderItems(data.seeds),
+            inline: false
+        });
+    }
+
+    if (data.gear.length > 0) {
+        fields.push({
+            name: "⚙️ FALL GEAR",
+            value: renderItems(data.gear),
+            inline: false
+        });
+    }
+
+    if (data.props.length > 0) {
+        fields.push({
+            name: "📦 FALL PROPS",
+            value: renderItems(data.props),
+            inline: false
+        });
+    }
+
+    const now = new Date();
+
+    const embed = {
+        title: "🍁 GROW A GARDEN 2 | FALL STOCK",
+        color: 0xd9822b,
+        fields,
+        footer: {
+            text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: now.toISOString()
+    };
+
+    await sendToWebhooks(
+        {
+            embeds: [embed]
+        },
+        [
+            process.env.FALL_WEBHOOK_URL,
+            process.env.KIRO_FALL_WEBHOOK_URL
+        ]
+    );
+
+    console.log("🍁 GAG2 FALL STOCK отправлен");
+}
+
 async function sendMoonShopEmbed(items) {
 
     const now = new Date();
@@ -618,6 +740,48 @@ async function checkGag2Stocks() {
     }
 }
 
+async function checkFallStocks() {
+
+    try {
+
+        console.log("🍁 Проверка GAG2 Fall Stock...");
+
+        const data = await fetchFallStocks();
+
+        if (
+            !data.ids.seeds &&
+            !data.ids.gear &&
+            !data.ids.props
+        ) {
+            console.log("❌ FALL данных нет");
+            return;
+        }
+
+        const currentState =
+            JSON.stringify(data.ids);
+
+        if (
+            currentState ===
+            lastFallCombinedIds
+        ) {
+            console.log("⏸️ FALL уже обработан");
+            return;
+        }
+
+        lastFallCombinedIds =
+            currentState;
+
+        await sendFallEmbed(data);
+
+    } catch (err) {
+
+        console.error(
+            "❌ FALL ошибка:",
+            err.message
+        );
+    }
+}
+
 async function checkMoonShopStock() {
 
     try {
@@ -683,6 +847,7 @@ function startSmartScheduler() {
             Promise.all([
                 checkAllStocks(),
                 checkGag2Stocks(),
+                checkFallStocks(),
                 ENABLE_MOON_SHOP
                     ? checkMoonShopStock()
                     : Promise.resolve()
