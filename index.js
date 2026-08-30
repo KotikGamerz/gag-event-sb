@@ -71,6 +71,7 @@ const GAG2_ROLE_IDS = {
 };
 
 let isChecking = false;
+let isCheckingGoliath = false;
 
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
@@ -830,6 +831,13 @@ async function checkFallStocks() {
 
 async function checkGoliathStocks() {
 
+    if (isCheckingGoliath) {
+        console.log("⏳ Goliath уже проверяется...");
+        return;
+    }
+
+    isCheckingGoliath = true;
+
     try {
 
         console.log("🧑‍🌾 Проверка Goliath Shop...");
@@ -838,10 +846,10 @@ async function checkGoliathStocks() {
             await fetchGoliathStocks();
 
         if (
-            !data.ids.goods &&
+            !data.ids.goods ||
             !data.ids.friends
         ) {
-            console.log("❌ Goliath данных нет");
+            console.log("⌛ Ждём оба Goliath сообщения...");
             return;
         }
 
@@ -867,6 +875,11 @@ async function checkGoliathStocks() {
             "❌ Goliath ошибка:",
             err.message
         );
+
+    } finally {
+
+        isCheckingGoliath = false;
+
     }
 }
 
@@ -881,7 +894,7 @@ function startSmartScheduler() {
 
         if (seconds < 30) targetSecond = 30;
         else if (seconds < 50) targetSecond = 50;
-        else targetSecond = 80;
+        else targetSecond = 90;
 
         const delay =
             (targetSecond - seconds) * 1000;
