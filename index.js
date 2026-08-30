@@ -75,11 +75,10 @@ let isChecking = false;
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
 let lastFallCombinedIds = '';
-let lastMoonShopMessageId = '';
+let lastGoliathCombinedIds = '';
 
-const ENABLE_MOON_SHOP =
-    process.env.ENABLE_MOON_SHOP !== 'false';
-
+const ENABLE_GOLIATH =
+    process.env.ENABLE_GOLIATH !== 'false';
 
 function parseStockText(text) {
 
@@ -223,20 +222,29 @@ async function fetchAllEmbeds(channelId) {
     return data;
 }
 
-async function fetchMoonShopStock() {
+async function fetchGoliathStocks() {
 
     const channel = client.channels.cache.get(
-        process.env.MOON_SHOP_CHANNEL_ID
+        process.env.GOLIATH_CHANNEL_ID
     );
 
     if (!channel) {
-        console.log("❌ Moon Shop канал не найден");
+        console.log("❌ Goliath канал не найден");
         return null;
     }
 
     const messages = await channel.messages.fetch({
-        limit: 5
+        limit: 8
     });
+
+    const result = {
+        goods: [],
+        friends: [],
+        ids: {
+            goods: null,
+            friends: null
+        }
+    };
 
     const sorted = [...messages.values()]
         .sort(
@@ -245,31 +253,51 @@ async function fetchMoonShopStock() {
                 a.createdTimestamp
         );
 
-    const msg = sorted.find(m =>
-        m.embeds?.length > 0 &&
-        (m.embeds[0].title || "")
-            .toLowerCase()
-            .includes("moon coin shop stock")
-    );
+    for (const msg of sorted) {
 
-    if (!msg) {
-        console.log("⚠️ Moon Coin Shop Stock embed не найден");
-        return null;
+        if (!msg.embeds?.length)
+            continue;
+
+        const embed = msg.embeds[0];
+
+        const title =
+            (embed.title || "").toLowerCase();
+
+        const text =
+            embed.description ||
+            embed.fields?.map(f => f.value).join('\n') ||
+            '';
+
+        // 📦 GOODS
+        if (
+            title.includes("goliath's goods stock") &&
+            !result.ids.goods
+        ) {
+
+            result.goods = parseStockText(text);
+            result.ids.goods = msg.id;
+        }
+
+        // 🤝 FRIEND DEALS
+        else if (
+            title.includes("goliath's friends deals stock") &&
+            !result.ids.friends
+        ) {
+
+            result.friends = parseStockText(text);
+            result.ids.friends = msg.id;
+        }
+
+        // нашли оба сообщения
+        if (
+            result.ids.goods &&
+            result.ids.friends
+        ) {
+            break;
+        }
     }
 
-    const embed = msg.embeds[0];
-
-    const text =
-        embed.description ||
-        embed.fields?.map(f => f.value).join('\n') ||
-        '';
-
-    const items = parseStockText(text);
-
-    return {
-        items,
-        messageId: msg.id
-    };
+    return result;
 }
 
 async function fetchGag2Stocks() {
@@ -627,14 +655,32 @@ async function sendFallEmbed(data) {
     console.log("🍁 GAG2 FALL STOCK отправлен");
 }
 
-async function sendMoonShopEmbed(items) {
+async function sendGoliathEmbed(data) {
+
+    const fields = [];
+
+    if (data.goods.length > 0) {
+        fields.push({
+            name: "📦 GOODS",
+            value: renderItems(data.goods),
+            inline: false
+        });
+    }
+
+    if (data.friends.length > 0) {
+        fields.push({
+            name: "🤝 FRIEND DEALS",
+            value: renderItems(data.friends),
+            inline: false
+        });
+    }
 
     const now = new Date();
 
     const embed = {
-        title: "🌕 GROW A GARDEN | MOON SHOP STOCK",
-        color: 0x5865f2,
-        description: renderItems(items),
+        title: "🧑‍🌾 GROW A GARDEN | GOLIATH SHOP",
+        color: 0xd55b47,
+        fields,
         footer: {
             text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
         },
@@ -646,12 +692,12 @@ async function sendMoonShopEmbed(items) {
             embeds: [embed]
         },
         [
-            process.env.MOON_SHOP_WEBHOOK_URL,
-            process.env.KIRO_MOON_SHOP_WEBHOOK_URL
+            process.env.GOLIATH_WEBHOOK_URL,
+            process.env.KIRO_GOLIATH_WEBHOOK_URL
         ]
     );
 
-    console.log("🌕 MOON SHOP STOCK отправлен");
+    console.log("🧑‍🌾 GOLIATH SHOP отправлен");
 }
 
 async function checkAllStocks() {
@@ -782,45 +828,45 @@ async function checkFallStocks() {
     }
 }
 
-async function checkMoonShopStock() {
+async function checkGoliathStocks() {
 
     try {
 
-        console.log("🌕 Проверка Moon Shop Stock...");
+        console.log("🧑‍🌾 Проверка Goliath Shop...");
 
-        const moon = await fetchMoonShopStock();
-
-        if (!moon || !moon.items.length) {
-            console.log("❌ Moon Shop данных нет");
-            return;
-        }
+        const data =
+            await fetchGoliathStocks();
 
         if (
-            moon.messageId ===
-            lastMoonShopMessageId
+            !data.ids.goods &&
+            !data.ids.friends
         ) {
-            console.log("⏸️ Moon Shop уже обработан");
+            console.log("❌ Goliath данных нет");
             return;
         }
 
-        lastMoonShopMessageId =
-            moon.messageId;
+        const currentState =
+            JSON.stringify(data.ids);
 
-        console.log(
-            `🌕 Новый Moon Shop: ${moon.items.length} предмет(а)`
-        );
+        if (
+            currentState ===
+            lastGoliathCombinedIds
+        ) {
+            console.log("⏸️ Goliath уже обработан");
+            return;
+        }
 
-        await sendMoonShopEmbed(
-            moon.items
-        );
+        lastGoliathCombinedIds =
+            currentState;
+
+        await sendGoliathEmbed(data);
 
     } catch (err) {
 
         console.error(
-            "❌ Moon Shop ошибка:",
+            "❌ Goliath ошибка:",
             err.message
         );
-
     }
 }
 
@@ -848,8 +894,8 @@ function startSmartScheduler() {
                 checkAllStocks(),
                 checkGag2Stocks(),
                 checkFallStocks(),
-                ENABLE_MOON_SHOP
-                    ? checkMoonShopStock()
+                ENABLE_GOLIATH
+                    ? checkGoliathStocks()
                     : Promise.resolve()
             ])
             .finally(() => {
