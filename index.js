@@ -719,25 +719,19 @@ async function checkGoliathStocks() {
 }
 
 function startSmartScheduler() {
-
     const scheduleNext = () => {
-
         const now = new Date();
         const seconds = now.getSeconds();
 
-        let targetSecond;
-
-        if (seconds < 30) targetSecond = 30;
-        else if (seconds < 50) targetSecond = 50;
-        else targetSecond = 90;
-
+        // Всегда ждём ближайшую :30
         const delay =
-            (targetSecond - seconds) * 1000;
+            seconds < 30
+                ? (30 - seconds) * 1000
+                : (90 - seconds) * 1000;
 
         console.log(`⏱️ Следующая проверка через ${delay / 1000}s`);
 
         setTimeout(() => {
-
             Promise.all([
                 checkAllStocks(),
                 checkGag2Stocks(),
@@ -748,7 +742,6 @@ function startSmartScheduler() {
             .finally(() => {
                 scheduleNext();
             });
-
         }, delay);
     };
 
