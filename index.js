@@ -71,14 +71,12 @@ const GAG2_ROLE_IDS = {
 };
 
 let isChecking = false;
-let isCheckingGoliath = false;
 
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
-let lastGoliathCombinedIds = '';
 
-const ENABLE_GOLIATH =
-    process.env.ENABLE_GOLIATH !== 'false';
+let isCheckingFallMarket = false;
+let lastFallMarketCombinedIds = '';
 
 function parseStockText(text) {
 
@@ -222,77 +220,84 @@ async function fetchAllEmbeds(channelId) {
     return data;
 }
 
-async function fetchGoliathStocks() {
+async function fetchFallMarketStocks() {
 
     const channel = client.channels.cache.get(
-        process.env.GOLIATH_CHANNEL_ID
+        "1382671962291175475"
     );
 
     if (!channel) {
-        console.log("❌ Goliath канал не найден");
+        console.log("❌ Fall Market канал не найден");
         return null;
     }
 
     const messages = await channel.messages.fetch({
-        limit: 8
+        limit: 10
     });
 
     const result = {
-        goods: [],
-        friends: [],
+        seeds: [],
+        gear: [],
+        pet: [],
+        cosmetic: [],
+
         ids: {
-            goods: null,
-            friends: null
+            seeds: null,
+            gear: null,
+            pet: null,
+            cosmetic: null
+        },
+
+        timestamps: {
+            seeds: null,
+            gear: null,
+            pet: null,
+            cosmetic: null
         }
     };
 
-    const sorted = [...messages.values()]
-        .sort(
-            (a, b) =>
-                b.createdTimestamp -
-                a.createdTimestamp
-        );
+    const titles = {
+        seeds: "fall market seed shop stock",
+        gear: "fall market gear shop stock",
+        pet: "fall market pet shop stock",
+        cosmetic: "fall market cosmetic shop stock"
+    };
+
+    const sorted = [...messages.values()].sort(
+        (a, b) => b.createdTimestamp - a.createdTimestamp
+    );
 
     for (const msg of sorted) {
 
-        if (!msg.embeds?.length)
+        if (!msg.embeds?.length) {
             continue;
-
-        const embed = msg.embeds[0];
-
-        const title =
-            (embed.title || "").toLowerCase();
-
-        const text =
-            embed.description ||
-            embed.fields?.map(f => f.value).join('\n') ||
-            '';
-
-        // 📦 GOODS
-        if (
-            title.includes("goliath's goods stock") &&
-            !result.ids.goods
-        ) {
-
-            result.goods = parseStockText(text);
-            result.ids.goods = msg.id;
         }
 
-        // 🤝 FRIEND DEALS
-        else if (
-            title.includes("goliath's friends deals stock") &&
-            !result.ids.friends
-        ) {
+        for (const embed of msg.embeds) {
 
-            result.friends = parseStockText(text);
-            result.ids.friends = msg.id;
+            const title = (embed.title || "")
+                .toLowerCase()
+                .trim();
+
+            const type = Object.keys(titles).find(
+                key => title.includes(titles[key])
+            );
+
+            if (!type || result.ids[type]) {
+                continue;
+            }
+
+            const text =
+                embed.description ||
+                embed.fields?.map(f => f.value).join('\n') ||
+                '';
+
+            result[type] = parseStockText(text);
+            result.ids[type] = msg.id;
+            result.timestamps[type] = msg.createdTimestamp;
         }
 
-        // нашли оба сообщения
-        if (
-            result.ids.goods &&
-            result.ids.friends
-        ) {
+        if (Object.values(result.ids).every(Boolean)) {
             break;
         }
     }
@@ -533,35 +538,44 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
-async function sendGoliathEmbed(data) {
-
-    const fields = [];
-
-    if (data.goods.length > 0) {
-        fields.push({
-            name: "📦 GOODS",
-            value: renderItems(data.goods),
-            inline: false
-        });
-    }
-
-    if (data.friends.length > 0) {
-        fields.push({
-            name: "🤝 FRIEND DEALS",
-            value: renderItems(data.friends),
-            inline: false
-        });
-    }
+async function sendFallMarketEmbed(data) {
 
     const now = new Date();
 
     const embed = {
-        title: "🧑‍🌾 GROW A GARDEN | GOLIATH SHOP",
+        title: "🍁 GROW A GARDEN | FALL MARKET STOCK",
         color: 0xd55b47,
-        fields,
+
+        fields: [
+            {
+                name: "🌱 SEED SHOP",
+                value: renderItems(data.seeds),
+                inline: false
+            },
+            {
+                name: "⚙️ GEAR SHOP",
+                value: renderItems(data.gear),
+                inline: false
+            },
+            {
+                name: "🥚 PET SHOP",
+                value: renderItems(data.pet),
+                inline: false
+            },
+            {
+                name: "📦 COSMETIC SHOP",
+                value: renderItems(data.cosmetic),
+                inline: false
+            }
+        ],
+
         footer: {
-            text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+            text: `Last update: ${now.toLocaleTimeString(
+                'en-GB',
+                { timeZone: 'UTC' }
+            )} UTC`
         },
+
         timestamp: now.toISOString()
     };
 
@@ -570,12 +584,12 @@ async function sendGoliathEmbed(data) {
             embeds: [embed]
         },
         [
-            process.env.GOLIATH_WEBHOOK_URL,
-            process.env.KIRO_GOLIATH_WEBHOOK_URL
+            process.env.FALL_MARKET_WEBHOOK_URL,
+            process.env.KIRO_FALL_MARKET_WEBHOOK_URL
         ]
     );
 
-    console.log("🧑‍🌾 GOLIATH SHOP отправлен");
+    console.log("🍁 FALL MARKET STOCK отправлен");
 }
 
 async function checkAllStocks() {
@@ -664,84 +678,115 @@ async function checkGag2Stocks() {
     }
 }
 
-async function checkGoliathStocks() {
+async function checkFallMarketStocks() {
 
-    if (isCheckingGoliath) {
-        console.log("⏳ Goliath уже проверяется...");
+    if (isCheckingFallMarket) {
+        console.log("⏳ Fall Market уже проверяется...");
         return;
     }
 
-    isCheckingGoliath = true;
+    isCheckingFallMarket = true;
 
     try {
 
-        console.log("🧑‍🌾 Проверка Goliath Shop...");
+        console.log("🍁 Проверка Fall Market...");
 
-        const data =
-            await fetchGoliathStocks();
+        const data = await fetchFallMarketStocks();
 
-        if (
-            !data.ids.goods ||
-            !data.ids.friends
-        ) {
-            console.log("⌛ Ждём оба Goliath сообщения...");
+        if (!data) {
+            console.log("❌ Fall Market: нет данных");
             return;
         }
 
-        const currentState =
-            JSON.stringify(data.ids);
+        const types = [
+            "seeds",
+            "gear",
+            "pet",
+            "cosmetic"
+        ];
 
-        if (
-            currentState ===
-            lastGoliathCombinedIds
-        ) {
-            console.log("⏸️ Goliath уже обработан");
+        // Ждём все четыре магазина
+        if (types.some(type => !data.ids[type])) {
+            console.log(
+                "⌛ Fall Market: ждём все четыре сообщения..."
+            );
             return;
         }
 
-        lastGoliathCombinedIds =
-            currentState;
+        // Определяем 15-минутный интервал каждого сообщения
+        const intervalMs = 15 * 60 * 1000;
 
-        await sendGoliathEmbed(data);
+        const intervals = types.map(type =>
+            Math.floor(
+                data.timestamps[type] / intervalMs
+            )
+        );
+
+        // Не объединяем сообщения из разных обновлений
+        if (!intervals.every(
+            interval => interval === intervals[0]
+        )) {
+            console.log(
+                "⌛ Fall Market: сообщения из разных обновлений, ждём остальные..."
+            );
+            return;
+        }
+
+        const currentState = JSON.stringify(data.ids);
+
+        if (currentState === lastFallMarketCombinedIds) {
+            console.log(
+                "⏸️ Fall Market уже обработан"
+            );
+            return;
+        }
+
+        await sendFallMarketEmbed(data);
+
+        lastFallMarketCombinedIds = currentState;
 
     } catch (err) {
 
         console.error(
-            "❌ Goliath ошибка:",
+            "❌ Fall Market ошибка:",
             err.message
         );
 
     } finally {
 
-        isCheckingGoliath = false;
+        isCheckingFallMarket = false;
 
     }
 }
 
 function startSmartScheduler() {
+
     const scheduleNext = () => {
+
         const now = new Date();
         const seconds = now.getSeconds();
 
-        // Всегда ждём ближайшую :30
+        // Проверяем стоки каждую минуту на :30
         const delay =
             seconds < 30
                 ? (30 - seconds) * 1000
                 : (90 - seconds) * 1000;
 
-        console.log(`⏱️ Следующая проверка через ${delay / 1000}s`);
+        console.log(
+            `⏱️ Следующая проверка через ${delay / 1000}s`
+        );
 
         setTimeout(() => {
+
             Promise.all([
                 checkAllStocks(),
                 checkGag2Stocks(),
-                ENABLE_GOLIATH
-                    ? checkGoliathStocks()
-                    : Promise.resolve()
+                checkFallMarketStocks()
             ])
             .finally(() => {
                 scheduleNext();
             });
+
         }, delay);
     };
 
