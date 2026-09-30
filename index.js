@@ -102,21 +102,97 @@ function parseStockText(text) {
     return items;
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function postWebhookWithRetry(
+    url,
+    payload,
+    webhookNumber,
+    maxRetries = 2
+) {
+    let retry = 0;
+
+    while (true) {
+        try {
+            return await axios.post(url, payload);
+
+        } catch (error) {
+            const status = error.response?.status;
+
+            // Временные ошибки сервера
+            const serverError =
+                status === 500 ||
+                status === 502 ||
+                status === 503 ||
+                status === 504;
+
+            // Например ECONNRESET, ETIMEDOUT и т.п.
+            const networkError = !error.response;
+
+            // Discord rate limit
+            const rateLimit = status === 429;
+
+            const canRetry =
+                serverError ||
+                networkError ||
+                rateLimit;
+
+            if (!canRetry || retry >= maxRetries) {
+                throw error;
+            }
+
+            let delay;
+
+            if (rateLimit) {
+                // Discord обычно отдаёт retry_after в секундах
+                const retryAfter =
+                    Number(error.response?.data?.retry_after) ||
+                    Number(error.response?.headers?.['retry-after']);
+
+                delay = retryAfter
+                    ? Math.ceil(retryAfter * 1000)
+                    : 5000;
+            } else {
+                // Первый retry через 2 сек, второй через 5 сек
+                delay = retry === 0 ? 2000 : 5000;
+            }
+
+            retry++;
+
+            console.warn(
+                `⚠️ Webhook #${webhookNumber}: ${status || error.code || 'network error'}, ` +
+                `повтор ${retry}/${maxRetries} через ${delay / 1000} сек.`
+            );
+
+            await sleep(delay);
+        }
+    }
+}
+
+
 async function sendToWebhooks(payload, urls) {
 
+    const validUrls = urls.filter(Boolean);
+
     const results = await Promise.allSettled(
-        urls.filter(Boolean).map(url =>
-            axios.post(url, payload)
+        validUrls.map((url, index) =>
+            postWebhookWithRetry(
+                url,
+                payload,
+                index + 1
+            )
         )
     );
 
     results.forEach((result, index) => {
 
         if (result.status === 'fulfilled') {
-            console.log(`✅ Webhook #${index + 1} отправлен`);
+            console.log(
+                `✅ Webhook #${index + 1} отправлен`
+            );
         } else {
             console.error(
-                `❌ Webhook #${index + 1} ошибка:`,
+                `❌ Webhook #${index + 1} ошибка после повторных попыток:`,
                 result.reason?.message
             );
         }
