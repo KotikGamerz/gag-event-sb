@@ -75,8 +75,8 @@ let isChecking = false;
 let lastCombinedIds = '';
 let lastGag2CombinedIds = '';
 
-let isCheckingFallMarket = false;
-let lastFallMarketCombinedIds = '';
+let isCheckingHalloween = false;
+let lastHalloweenCombinedIds = '';
 
 function parseStockText(text) {
 
@@ -296,14 +296,14 @@ async function fetchAllEmbeds(channelId) {
     return data;
 }
 
-async function fetchFallMarketStocks() {
+async function fetchHalloweenStocks() {
 
     const channel = client.channels.cache.get(
         "1382671962291175475"
     );
 
     if (!channel) {
-        console.log("❌ Fall Market канал не найден");
+        console.log("❌ Halloween канал не найден");
         return null;
     }
 
@@ -312,35 +312,33 @@ async function fetchFallMarketStocks() {
     });
 
     const result = {
+        decor: [],
         seeds: [],
-        gear: [],
-        pet: [],
-        cosmetic: [],
+        fauna: [],
 
         ids: {
+            decor: null,
             seeds: null,
-            gear: null,
-            pet: null,
-            cosmetic: null
+            fauna: null
         },
 
         timestamps: {
+            decor: null,
             seeds: null,
-            gear: null,
-            pet: null,
-            cosmetic: null
+            fauna: null
         }
     };
 
     const titles = {
-        seeds: "fall market seed shop stock",
-        gear: "fall market gear shop stock",
-        pet: "fall market pet shop stock",
-        cosmetic: "fall market cosmetic shop stock"
+        decor: "demonic decor stock",
+        seeds: "scary seeds stock",
+        fauna: "frightening fauna stock"
     };
 
     const sorted = [...messages.values()].sort(
-        (a, b) => b.createdTimestamp - a.createdTimestamp
+        (a, b) =>
+            b.createdTimestamp -
+            a.createdTimestamp
     );
 
     for (const msg of sorted) {
@@ -365,15 +363,26 @@ async function fetchFallMarketStocks() {
 
             const text =
                 embed.description ||
-                embed.fields?.map(f => f.value).join('\n') ||
+                embed.fields
+                    ?.map(f => f.value)
+                    .join('\n') ||
                 '';
 
-            result[type] = parseStockText(text);
-            result.ids[type] = msg.id;
-            result.timestamps[type] = msg.createdTimestamp;
+            result[type] =
+                parseStockText(text);
+
+            result.ids[type] =
+                msg.id;
+
+            result.timestamps[type] =
+                msg.createdTimestamp;
         }
 
-        if (Object.values(result.ids).every(Boolean)) {
+        if (
+            Object.values(
+                result.ids
+            ).every(Boolean)
+        ) {
             break;
         }
     }
@@ -614,45 +623,66 @@ async function sendGag2Embed(data) {
     console.log("📦 GAG2 STOCK отправлен");
 }
 
-async function sendFallMarketEmbed(data) {
+async function sendHalloweenEmbed(data) {
 
     const now = new Date();
 
     const embed = {
-        title: "🍁 GROW A GARDEN | FALL MARKET STOCK",
-        color: 0xd55b47,
+        title:
+            "🎃 GROW A GARDEN | HALLOWEEN STOCK",
+
+        color: 0xff5a36,
 
         fields: [
             {
-                name: "🌱 SEED SHOP",
-                value: renderItems(data.seeds),
+                name:
+                    "👹 DEMONIC DECOR",
+
+                value:
+                    renderItems(
+                        data.decor
+                    ),
+
                 inline: false
             },
             {
-                name: "⚙️ GEAR SHOP",
-                value: renderItems(data.gear),
+                name:
+                    "🌱 SCARY SEEDS",
+
+                value:
+                    renderItems(
+                        data.seeds
+                    ),
+
                 inline: false
             },
             {
-                name: "🥚 PET SHOP",
-                value: renderItems(data.pet),
-                inline: false
-            },
-            {
-                name: "📦 COSMETIC SHOP",
-                value: renderItems(data.cosmetic),
+                name:
+                    "🦇 FRIGHTENING FAUNA",
+
+                value:
+                    renderItems(
+                        data.fauna
+                    ),
+
                 inline: false
             }
         ],
 
         footer: {
-            text: `Last update: ${now.toLocaleTimeString(
-                'en-GB',
-                { timeZone: 'UTC' }
-            )} UTC`
+            text:
+                `Last update: ${
+                    now.toLocaleTimeString(
+                        'en-GB',
+                        {
+                            timeZone: 'UTC'
+                        }
+                    )
+                } UTC`
         },
 
-        timestamp: now.toISOString()
+        timestamp:
+            now.toISOString()
     };
 
     await sendToWebhooks(
@@ -660,12 +690,17 @@ async function sendFallMarketEmbed(data) {
             embeds: [embed]
         },
         [
-            process.env.FALL_MARKET_WEBHOOK_URL,
-            process.env.KIRO_FALL_MARKET_WEBHOOK_URL
+            process.env
+                .HALLOWEEN_WEBHOOK_URL,
+
+            process.env
+                .KIRO_HALLOWEEN_WEBHOOK_URL
         ]
     );
 
-    console.log("🍁 FALL MARKET STOCK отправлен");
+    console.log(
+        "🎃 HALLOWEEN STOCK отправлен"
+    );
 }
 
 async function checkAllStocks() {
@@ -754,84 +789,175 @@ async function checkGag2Stocks() {
     }
 }
 
-async function checkFallMarketStocks() {
+async function checkHalloweenStocks() {
 
-    if (isCheckingFallMarket) {
-        console.log("⏳ Fall Market уже проверяется...");
+    if (isCheckingHalloween) {
+
+        console.log(
+            "⏳ Halloween уже проверяется..."
+        );
+
         return;
     }
 
-    isCheckingFallMarket = true;
+    /*
+        Halloween stock обновляется
+        каждые 5 минут.
+
+        Проверяем в минуту обновления
+        и ещё раз через минуту,
+        если три сообщения пришли
+        не одновременно.
+    */
+
+    const minute =
+        new Date().getUTCMinutes();
+
+    const minuteInCycle =
+        minute % 5;
+
+    if (
+        minuteInCycle !== 0 &&
+        minuteInCycle !== 1
+    ) {
+        return;
+    }
+
+
+    isCheckingHalloween = true;
+
 
     try {
 
-        console.log("🍁 Проверка Fall Market...");
-
-        const data = await fetchFallMarketStocks();
-
-        if (!data) {
-            console.log("❌ Fall Market: нет данных");
-            return;
-        }
-
-        const types = [
-            "seeds",
-            "gear",
-            "pet",
-            "cosmetic"
-        ];
-
-        // Ждём все четыре магазина
-        if (types.some(type => !data.ids[type])) {
-            console.log(
-                "⌛ Fall Market: ждём все четыре сообщения..."
-            );
-            return;
-        }
-
-        // Определяем 15-минутный интервал каждого сообщения
-        const intervalMs = 15 * 60 * 1000;
-
-        const intervals = types.map(type =>
-            Math.floor(
-                data.timestamps[type] / intervalMs
-            )
+        console.log(
+            "🎃 Проверка Halloween Stock..."
         );
 
-        // Не объединяем сообщения из разных обновлений
-        if (!intervals.every(
-            interval => interval === intervals[0]
-        )) {
+
+        const data =
+            await fetchHalloweenStocks();
+
+
+        if (!data) {
+
             console.log(
-                "⌛ Fall Market: сообщения из разных обновлений, ждём остальные..."
+                "❌ Halloween: нет данных"
             );
+
             return;
         }
 
-        const currentState = JSON.stringify(data.ids);
 
-        if (currentState === lastFallMarketCombinedIds) {
+        const types = [
+            "decor",
+            "seeds",
+            "fauna"
+        ];
+
+
+        // Ждём все три сообщения
+        if (
+            types.some(
+                type =>
+                    !data.ids[type]
+            )
+        ) {
+
             console.log(
-                "⏸️ Fall Market уже обработан"
+                "⌛ Halloween: ждём все три сообщения..."
             );
+
             return;
         }
 
-        await sendFallMarketEmbed(data);
 
-        lastFallMarketCombinedIds = currentState;
+        /*
+            Все три сообщения одного
+            рестока должны прийти
+            почти одновременно.
+
+            Если одно уже новое,
+            а остальные старые,
+            бот ничего не отправит.
+        */
+
+        const timestamps =
+            types.map(
+                type =>
+                    data.timestamps[type]
+            );
+
+
+        const oldestTimestamp =
+            Math.min(
+                ...timestamps
+            );
+
+
+        const newestTimestamp =
+            Math.max(
+                ...timestamps
+            );
+
+
+        const messageGap =
+            newestTimestamp -
+            oldestTimestamp;
+
+
+        if (
+            messageGap >
+            60 * 1000
+        ) {
+
+            console.log(
+                "⌛ Halloween: сообщения из разных обновлений, ждём остальные..."
+            );
+
+            return;
+        }
+
+
+        const currentState =
+            JSON.stringify(
+                data.ids
+            );
+
+
+        if (
+            currentState ===
+            lastHalloweenCombinedIds
+        ) {
+
+            console.log(
+                "⏸️ Halloween уже обработан"
+            );
+
+            return;
+        }
+
+
+        await sendHalloweenEmbed(
+            data
+        );
+
+
+        lastHalloweenCombinedIds =
+            currentState;
+
 
     } catch (err) {
 
         console.error(
-            "❌ Fall Market ошибка:",
+            "❌ Halloween ошибка:",
             err.message
         );
 
+
     } finally {
 
-        isCheckingFallMarket = false;
-
+        isCheckingHalloween =
+            false;
     }
 }
 
@@ -840,31 +966,40 @@ function startSmartScheduler() {
     const scheduleNext = () => {
 
         const now = new Date();
-        const seconds = now.getSeconds();
+        const seconds =
+            now.getSeconds();
 
-        // Проверяем стоки каждую минуту на :30
+        // Проверяем стоки
+        // каждую минуту на :30
         const delay =
             seconds < 30
                 ? (30 - seconds) * 1000
                 : (90 - seconds) * 1000;
 
+
         console.log(
-            `⏱️ Следующая проверка через ${delay / 1000}s`
+            `⏱️ Следующая проверка через ${
+                delay / 1000
+            }s`
         );
+
 
         setTimeout(() => {
 
             Promise.all([
                 checkAllStocks(),
                 checkGag2Stocks(),
-                checkFallMarketStocks()
+                checkHalloweenStocks()
             ])
             .finally(() => {
+
                 scheduleNext();
+
             });
 
         }, delay);
     };
+
 
     scheduleNext();
 }
