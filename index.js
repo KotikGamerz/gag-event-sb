@@ -498,7 +498,15 @@ function renderItems(items) {
     }
 
     return items
-        .map(i => `- ${i.raw} — ${i.count}`)
+        .map(i => {
+
+            const raw = i.raw.replace(
+                /\u26D3(?:\uFE0F)?/g,
+                '\u26D3\uFE0F'
+            );
+
+            return `- ${raw} — ${i.count}`;
+        })
         .join('\n');
 }
 
