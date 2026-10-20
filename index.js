@@ -636,75 +636,112 @@ async function sendHalloweenEmbed(data) {
     const now = new Date();
 
     const embed = {
-        title:
-            "🎃 GROW A GARDEN | HALLOWEEN STOCK",
-
+        title: "🎃 GROW A GARDEN | HALLOWEEN STOCK",
         color: 0xff5a36,
 
         fields: [
             {
-                name:
-                    "👹 DEMONIC DECOR",
-
-                value:
-                    renderItems(
-                        data.decor
-                    ),
-
+                name: "👹 DEMONIC DECOR",
+                value: renderItems(data.decor),
                 inline: false
             },
             {
-                name:
-                    "🌱 SCARY SEEDS",
-
-                value:
-                    renderItems(
-                        data.seeds
-                    ),
-
+                name: "🌱 SCARY SEEDS",
+                value: renderItems(data.seeds),
                 inline: false
             },
             {
-                name:
-                    "🦇 FRIGHTENING FAUNA",
-
-                value:
-                    renderItems(
-                        data.fauna
-                    ),
-
+                name: "🦇 FRIGHTENING FAUNA",
+                value: renderItems(data.fauna),
                 inline: false
             }
         ],
 
         footer: {
-            text:
-                `Last update: ${
-                    now.toLocaleTimeString(
-                        'en-GB',
-                        {
-                            timeZone: 'UTC'
-                        }
-                    )
-                } UTC`
+            text: `Last update: ${now.toLocaleTimeString(
+                'en-GB',
+                { timeZone: 'UTC' }
+            )} UTC`
         },
 
-        timestamp:
-            now.toISOString()
+        timestamp: now.toISOString()
     };
+
+
+    // ==========================================
+    // 🎃 ПРОВЕРЯЕМ HAUNTED HALLOW
+    // ==========================================
+
+    const hasHauntedHallow =
+        data.seeds.some(item => {
+
+            const itemName =
+                (item.raw || "")
+                    .toLowerCase();
+
+            return itemName.includes(
+                "halloween haunted hallow"
+            );
+        });
+
+
+    // ==========================================
+    // ТВОЙ WEBHOOK
+    // С ПИНГОМ, ЕСЛИ ЕСТЬ HAUNTED HALLOW
+    // ==========================================
+
+    const myPayload = {
+        embeds: [embed]
+    };
+
+
+    if (
+        hasHauntedHallow &&
+        process.env.KOTIK_USER_ID
+    ) {
+
+        myPayload.content =
+            `<@${process.env.KOTIK_USER_ID}>`;
+
+        myPayload.allowed_mentions = {
+            users: [
+                process.env.KOTIK_USER_ID
+            ]
+        };
+
+
+        console.log(
+            "🚨 Halloween Haunted Hallow найден!"
+        );
+
+        console.log(
+            "🔔 Отправляем личный пинг KotikGamerz"
+        );
+    }
+
+
+    await sendToWebhooks(
+        myPayload,
+        [
+            process.env.HALLOWEEN_WEBHOOK_URL
+        ]
+    );
+
+
+    // ==========================================
+    // WEBHOOK KIRO
+    // ВСЕГДА БЕЗ ТВОЕГО ПИНГА
+    // ==========================================
 
     await sendToWebhooks(
         {
             embeds: [embed]
         },
         [
-            process.env
-                .HALLOWEEN_WEBHOOK_URL,
-
-            process.env
-                .KIRO_HALLOWEEN_WEBHOOK_URL
+            process.env.KIRO_HALLOWEEN_WEBHOOK_URL
         ]
     );
+
 
     console.log(
         "🎃 HALLOWEEN STOCK отправлен"
