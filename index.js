@@ -547,7 +547,7 @@ async function sendCombinedEmbed(data) {
     }
 
     const embed = {
-        title: "🌱 GROW A GARDEN | EVENT STOCK",
+        title: "🌱 GROW A GARDEN | BEE MARKET STOCK",
         color: 0xff9900,
         fields,
         footer: {
@@ -669,18 +669,18 @@ async function sendHalloweenEmbed(data) {
 
 
     // ==========================================
-    // 🎃 ПРОВЕРЯЕМ HAUNTED HALLOW
+    // 🎃 ПРОВЕРЯЕМ SPOOKY CHEST
     // ==========================================
 
-    const hasHauntedHallow =
-        data.seeds.some(item => {
+    const hasSpookyChest =
+        data.fauna.some(item => {
 
             const itemName =
                 (item.raw || "")
                     .toLowerCase();
 
             return itemName.includes(
-                "halloween haunted hallow"
+                "spooky chest"
             );
         });
 
@@ -696,7 +696,7 @@ async function sendHalloweenEmbed(data) {
 
 
     if (
-        hasHauntedHallow &&
+        hasSpookyChest &&
         process.env.KOTIK_USER_ID
     ) {
 
@@ -711,7 +711,7 @@ async function sendHalloweenEmbed(data) {
 
 
         console.log(
-            "🚨 Halloween Haunted Hallow найден!"
+            "🚨 Spooky Chest найден!"
         );
 
         console.log(
