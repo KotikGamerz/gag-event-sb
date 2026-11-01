@@ -1049,15 +1049,135 @@ function startSmartScheduler() {
     scheduleNext();
 }
 
+
 client.on('ready', async () => {
 
-    console.log(`✅ Залогинен как ${client.user.tag}`);
+    console.log(
+        `✅ READY! Залогинен как ${client.user.tag}`
+    );
 
-    console.log("🧠 Smart scheduler запущен");
+    console.log(
+        "🧠 Smart scheduler запущен"
+    );
 
     startSmartScheduler();
 });
 
-client.login(process.env.USER_TOKEN)
-    .then(() => console.log("📲 login() успешно"))
-    .catch(err => console.error("❌ LOGIN ERROR:", err));
+
+client.on('error', err => {
+
+    console.error(
+        "❌ CLIENT ERROR:",
+        err
+    );
+});
+
+
+client.on('disconnect', () => {
+
+    console.log(
+        "🔌 DISCORD CLIENT DISCONNECTED"
+    );
+});
+
+
+async function startDiscord() {
+
+    console.log(
+        "🔑 USER_TOKEN:",
+        process.env.USER_TOKEN
+            ? "есть"
+            : "НЕТ"
+    );
+
+
+    // Проверяем обычное HTTPS-соединение
+    // Render -> Discord API
+
+    try {
+
+        console.log(
+            "🌐 Проверяю Render → Discord API..."
+        );
+
+        const response =
+            await axios.get(
+                "https://discord.com/api/v10/gateway",
+                {
+                    timeout: 15000
+                }
+            );
+
+
+        console.log(
+            "✅ Discord API отвечает:",
+            response.status
+        );
+
+
+    } catch (err) {
+
+        console.error(
+            "❌ Render не может нормально достучаться до Discord API"
+        );
+
+        console.error(
+            err.code ||
+            err.message
+        );
+
+        return;
+    }
+
+
+    console.log(
+        "🔐 Запускаю client.login()..."
+    );
+
+
+    try {
+
+        const loginTimeout =
+            new Promise((_, reject) => {
+
+                setTimeout(() => {
+
+                    reject(
+                        new Error(
+                            "client.login() завис больше чем на 30 секунд"
+                        )
+                    );
+
+                }, 30000);
+            });
+
+
+        await Promise.race([
+
+            client.login(
+                process.env.USER_TOKEN
+            ),
+
+            loginTimeout
+
+        ]);
+
+
+        console.log(
+            "📲 client.login() Promise завершился"
+        );
+
+
+    } catch (err) {
+
+        console.error(
+            "❌ LOGIN ERROR:",
+            err.message
+        );
+
+        console.error(err);
+    }
+}
+
+
+startDiscord();
