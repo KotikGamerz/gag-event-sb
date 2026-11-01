@@ -1063,6 +1063,19 @@ client.on('ready', async () => {
     startSmartScheduler();
 });
 
+client.on('ready', async () => {
+
+    console.log(
+        `✅ READY! Залогинен как ${client.user.tag}`
+    );
+
+    console.log(
+        "🧠 Smart scheduler запущен"
+    );
+
+    startSmartScheduler();
+});
+
 
 client.on('error', err => {
 
@@ -1081,6 +1094,35 @@ client.on('disconnect', () => {
 });
 
 
+client.on('rateLimit', info => {
+
+    console.log(
+        "⏳ DISCORD RATE LIMIT:",
+        info
+    );
+});
+
+
+client.on('debug', info => {
+
+    const text =
+        String(info);
+
+    if (
+        text.includes('429') ||
+        text.toLowerCase().includes('rate limit') ||
+        text.toLowerCase().includes('ratelimit') ||
+        text.toLowerCase().includes('sublimit')
+    ) {
+
+        console.log(
+            "🐛 DISCORD DEBUG:",
+            text
+        );
+    }
+});
+
+
 async function startDiscord() {
 
     console.log(
@@ -1091,8 +1133,9 @@ async function startDiscord() {
     );
 
 
-    // Проверяем обычное HTTPS-соединение
-    // Render -> Discord API
+    // ==========================================
+    // 1. ПРОВЕРЯЕМ RENDER -> DISCORD REST API
+    // ==========================================
 
     try {
 
@@ -1100,11 +1143,17 @@ async function startDiscord() {
             "🌐 Проверяю Render → Discord API..."
         );
 
+
         const response =
             await axios.get(
                 "https://discord.com/api/v10/gateway",
                 {
-                    timeout: 15000
+                    timeout: 15000,
+
+                    headers: {
+                        "User-Agent":
+                            "DiscordBot (https://example.com, 1.0)"
+                    }
                 }
             );
 
@@ -1115,24 +1164,72 @@ async function startDiscord() {
         );
 
 
+        console.log(
+            "🌐 Gateway URL:",
+            response.data?.url || response.data
+        );
+
+
     } catch (err) {
 
         console.error(
-            "❌ Render не может нормально достучаться до Discord API"
+            "❌ Discord API test failed"
         );
 
+
         console.error(
-            err.code ||
+            "Axios code:",
+            err.code || "нет"
+        );
+
+
+        console.error(
+            "HTTP status:",
+            err.response?.status || "нет ответа"
+        );
+
+
+        console.error(
+            "Discord response:",
+            err.response?.data || "нет тела ответа"
+        );
+
+
+        console.error(
+            "Headers:",
+            err.response?.headers || "нет headers"
+        );
+
+
+        console.error(
+            "Message:",
             err.message
         );
+
+
+        /*
+            ВАЖНО:
+            Пока диагностика не прошла,
+            client.login() не запускаем.
+
+            Так мы точно понимаем:
+            проблема в REST или уже в Gateway/login.
+        */
 
         return;
     }
 
 
+    // ==========================================
+    // 2. ПРОБУЕМ LOGIN
+    // ==========================================
+
     console.log(
         "🔐 Запускаю client.login()..."
     );
+
+
+    let loginTimeoutId;
 
 
     try {
@@ -1140,44 +1237,65 @@ async function startDiscord() {
         const loginTimeout =
             new Promise((_, reject) => {
 
-                setTimeout(() => {
+                loginTimeoutId =
+                    setTimeout(() => {
 
-                    reject(
-                        new Error(
-                            "client.login() завис больше чем на 30 секунд"
-                        )
-                    );
+                        reject(
+                            new Error(
+                                "client.login() завис больше чем на 30 секунд"
+                            )
+                        );
 
-                }, 30000);
+                    }, 30000);
             });
 
 
         await Promise.race([
-
             client.login(
                 process.env.USER_TOKEN
             ),
 
             loginTimeout
-
         ]);
 
 
+        clearTimeout(
+            loginTimeoutId
+        );
+
+
         console.log(
-            "📲 client.login() Promise завершился"
+            "📲 client.login() Promise завершился успешно"
+        );
+
+
+        console.log(
+            "⏳ Ждём событие ready..."
         );
 
 
     } catch (err) {
+
+        clearTimeout(
+            loginTimeoutId
+        );
+
 
         console.error(
             "❌ LOGIN ERROR:",
             err.message
         );
 
-        console.error(err);
+
+        console.error(
+            err
+        );
     }
 }
 
+
+// ==========================================
+// ЗАПУСК DISCORD
+// ==========================================
 
 startDiscord();
