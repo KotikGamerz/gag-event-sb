@@ -1063,20 +1063,6 @@ client.on('ready', async () => {
     startSmartScheduler();
 });
 
-client.on('ready', async () => {
-
-    console.log(
-        `✅ READY! Залогинен как ${client.user.tag}`
-    );
-
-    console.log(
-        "🧠 Smart scheduler запущен"
-    );
-
-    startSmartScheduler();
-});
-
-
 client.on('error', err => {
 
     console.error(
