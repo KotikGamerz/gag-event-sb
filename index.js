@@ -390,6 +390,421 @@ async function fetchHalloweenStocks() {
     return result;
 }
 
+async function fetchGag2Stocks() {
+
+    const result = {
+        seeds: [],
+        gear: [],
+        props: [],
+        ids: {
+            seeds: null,
+            gear: null,
+            props: null
+        }
+    };
+
+    const channels = {
+        seeds: client.channels.cache.get("1511902092372213832"),
+        gear: client.channels.cache.get("1511902177067794532"),
+        props: client.channels.cache.get("1515033494307209313")
+    };
+
+    for (const [type, channel] of Object.entries(channels)) {
+
+        if (!channel) {
+            console.log(`❌ GAG2 канал не найден: ${type}`);
+            continue;
+        }
+
+        const messages =
+            await channel.messages.fetch({ limit: 3 });
+
+        const msg =
+            messages
+                .sort(
+                    (a, b) =>
+                        b.createdTimestamp -
+                        a.createdTimestamp
+                )
+                .first();
+
+        if (!msg || !msg.embeds?.length) {
+            continue;
+        }
+
+        const embed = msg.embeds[0];
+
+        const text =
+            embed.description ||
+            embed.fields?.map(f => f.value).join('\n') ||
+            '';
+
+        result[type] = parseStockText(
+            text.replace(/•/g, '')
+        );
+
+        result.ids[type] = msg.id;
+    }
+
+    return result;
+}
+
+
+function getPingText(items) {
+
+    const pings = [];
+
+    for (const item of items) {
+
+        const cleanName = item.raw
+            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            .trim();
+
+        if (ROLE_IDS[cleanName]) {
+            pings.push(`<@&${ROLE_IDS[cleanName]}>`);
+        }
+    }
+
+    return [...new Set(pings)].join(' ');
+}
+
+
+function getGag2PingText(data) {
+
+    const pings = [];
+
+    const allItems = [
+        ...data.seeds,
+        ...data.gear,
+        ...data.props
+    ];
+
+    for (const item of allItems) {
+
+        const cleanName = item.raw
+            .replace(/^[^\p{L}]+/u, '')
+            .trim();
+
+        if (GAG2_ROLE_IDS[cleanName]) {
+            pings.push(`<@&${GAG2_ROLE_IDS[cleanName]}>`);
+        }
+    }
+
+    return [...new Set(pings)].join(' ');
+}
+
+
+function renderItems(items) {
+
+    if (!items.length) {
+        return 'Nothing today 😔';
+    }
+
+    return items
+        .map(i => {
+
+            const raw = i.raw.replace(
+                /\u26D3(?:\uFE0F)?/g,
+                '\u26D3\uFE0F'
+            );
+
+            return `- ${raw} — ${i.count}`;
+        })
+        .join('\n');
+}
+
+
+async function sendCombinedEmbed(data) {
+
+    const fields = [];
+
+    if (data.eggs.length > 0) {
+        fields.push({
+            name: "🥚 Bee Eggs",
+            value: renderItems(data.eggs),
+            inline: false
+        });
+    }
+
+    if (data.seeds.length > 0) {
+        fields.push({
+            name: "🌱 Honey Seeds",
+            value: renderItems(data.seeds),
+            inline: false
+        });
+    }
+
+    if (data.coin.length > 0) {
+        fields.push({
+            name: "🪙 Honey Coin Shop",
+            value: renderItems(data.coin),
+            inline: false
+        });
+    }
+
+    if (data.jelly.length > 0) {
+        fields.push({
+            name: "🍯 Royal Jelly Shop",
+            value: renderItems(data.jelly),
+            inline: false
+        });
+    }
+
+    const embed = {
+        title: "🌱 GROW A GARDEN | BEE MARKET STOCK",
+        color: 0xff9900,
+        fields,
+        footer: {
+            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: new Date().toISOString()
+    };
+
+    const pingText = getPingText([
+        ...data.eggs,
+        ...data.seeds,
+        ...data.coin,
+        ...data.jelly
+    ]);
+
+    await sendToWebhooks(
+        {
+            content: pingText || null,
+            embeds: [embed]
+        },
+        [
+            process.env.WEBHOOK_URL,
+            process.env.KIRO_WEBHOOK_URL
+        ]
+    );
+
+    console.log("📦 EVENT STOCK отправлен");
+}
+
+
+async function sendGag2Embed(data) {
+
+    const fields = [];
+
+    if (data.seeds.length > 0) {
+        fields.push({
+            name: "🌾 SEEDS",
+            value: renderItems(data.seeds),
+            inline: false
+        });
+    }
+
+    if (data.gear.length > 0) {
+        fields.push({
+            name: "⚙️ GEAR",
+            value: renderItems(data.gear),
+            inline: false
+        });
+    }
+
+    if (data.props.length > 0) {
+        fields.push({
+            name: "📦 PROPS",
+            value: renderItems(data.props),
+            inline: false
+        });
+    }
+
+    const embed = {
+        title: "🌱 GROW A GARDEN 2 | STOCK",
+        color: 0x00ff88,
+        fields,
+        footer: {
+            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: new Date().toISOString()
+    };
+
+    const pingText = getGag2PingText(data);
+
+    await sendToWebhooks(
+        {
+            content: pingText || null,
+            embeds: [embed]
+        },
+        [
+            process.env.GAG2_WEBHOOK_URL,
+            process.env.KIRO_GAG2_WEBHOOK_URL
+        ]
+    );
+
+    console.log("📦 GAG2 STOCK отправлен");
+}
+
+
+async function sendHalloweenEmbed(data) {
+
+    const now = new Date();
+
+    const embed = {
+        title: "🎃 GROW A GARDEN | HALLOWEEN STOCK",
+        color: 0xff5a36,
+
+        fields: [
+            {
+                name: "👹 DEMONIC DECOR",
+                value: renderItems(data.decor),
+                inline: false
+            },
+            {
+                name: "🌱 SCARY SEEDS",
+                value: renderItems(data.seeds),
+                inline: false
+            },
+            {
+                name: "🦇 FRIGHTENING FAUNA",
+                value: renderItems(data.fauna),
+                inline: false
+            }
+        ],
+
+        footer: {
+            text: `Last update: ${now.toLocaleTimeString(
+                'en-GB',
+                { timeZone: 'UTC' }
+            )} UTC`
+        },
+
+        timestamp: now.toISOString()
+    };
+
+
+    const hasSpookyChest =
+        data.fauna.some(item => {
+
+            const itemName =
+                (item.raw || "")
+                    .toLowerCase();
+
+            return itemName.includes(
+                "spooky chest"
+            );
+        });
+
+
+    const myPayload = {
+        embeds: [embed]
+    };
+
+
+    if (
+        hasSpookyChest &&
+        process.env.KOTIK_USER_ID
+    ) {
+
+        myPayload.content =
+            `<@${process.env.KOTIK_USER_ID}>`;
+
+        myPayload.allowed_mentions = {
+            users: [
+                process.env.KOTIK_USER_ID
+            ]
+        };
+
+        console.log(
+            "🚨 Spooky Chest найден!"
+        );
+
+        console.log(
+            "🔔 Отправляем личный пинг KotikGamerz"
+        );
+    }
+
+
+    await sendToWebhooks(
+        myPayload,
+        [
+            process.env.HALLOWEEN_WEBHOOK_URL
+        ]
+    );
+
+
+    await sendToWebhooks(
+        {
+            embeds: [embed]
+        },
+        [
+            process.env.KIRO_HALLOWEEN_WEBHOOK_URL
+        ]
+    );
+
+
+    console.log(
+        "🎃 HALLOWEEN STOCK отправлен"
+    );
+}
+
+
+async function checkAllStocks() {
+
+    if (isChecking) {
+        return;
+    }
+
+    isChecking = true;
+
+    try {
+
+        console.log(
+            "🔄 Проверка event stock..."
+        );
+
+        const data =
+            await fetchAllEmbeds(
+                process.env.EVENTS_CHANNEL_ID
+            );
+
+        if (!data) {
+
+            console.log(
+                "❌ Нет данных"
+            );
+
+            return;
+        }
+
+        const currentState =
+            JSON.stringify(
+                data.ids
+            );
+
+        if (
+            currentState ===
+            lastCombinedIds
+        ) {
+
+            console.log(
+                "⏸️ Уже обработано"
+            );
+
+            return;
+        }
+
+        lastCombinedIds =
+            currentState;
+
+        await sendCombinedEmbed(
+            data
+        );
+
+    } catch (err) {
+
+        console.error(
+            "❌ Ошибка:",
+            err.message
+        );
+
+    } finally {
+
+        isChecking = false;
+    }
+}
+
 let isCheckingGag2 = false;
 
 
