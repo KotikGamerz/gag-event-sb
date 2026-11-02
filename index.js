@@ -1122,7 +1122,6 @@ client.on('debug', info => {
     }
 });
 
-
 async function startDiscord() {
 
     console.log(
@@ -1131,6 +1130,41 @@ async function startDiscord() {
             ? "есть"
             : "НЕТ"
     );
+
+
+    // ==========================================
+    // 0. УЗНАЁМ ПУБЛИЧНЫЙ OUTBOUND IP RENDER
+    // ==========================================
+
+    try {
+
+        console.log(
+            "🌍 Определяю outbound IP Render..."
+        );
+
+
+        const ipResponse =
+            await axios.get(
+                "https://api.ipify.org?format=json",
+                {
+                    timeout: 10000
+                }
+            );
+
+
+        console.log(
+            "🌍 RENDER OUTBOUND IP:",
+            ipResponse.data?.ip || ipResponse.data
+        );
+
+
+    } catch (err) {
+
+        console.error(
+            "⚠️ Не удалось определить outbound IP:",
+            err.message
+        );
+    }
 
 
     // ==========================================
@@ -1196,8 +1230,14 @@ async function startDiscord() {
 
 
         console.error(
-            "Headers:",
-            err.response?.headers || "нет headers"
+            "Retry-After:",
+            err.response?.headers?.["retry-after"] || "нет"
+        );
+
+
+        console.error(
+            "CF-Ray:",
+            err.response?.headers?.["cf-ray"] || "нет"
         );
 
 
@@ -1206,15 +1246,6 @@ async function startDiscord() {
             err.message
         );
 
-
-        /*
-            ВАЖНО:
-            Пока диагностика не прошла,
-            client.login() не запускаем.
-
-            Так мы точно понимаем:
-            проблема в REST или уже в Gateway/login.
-        */
 
         return;
     }
@@ -1251,11 +1282,13 @@ async function startDiscord() {
 
 
         await Promise.race([
+
             client.login(
                 process.env.USER_TOKEN
             ),
 
             loginTimeout
+
         ]);
 
 
@@ -1287,9 +1320,7 @@ async function startDiscord() {
         );
 
 
-        console.error(
-            err
-        );
+        console.error(err);
     }
 }
 
