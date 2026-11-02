@@ -390,423 +390,58 @@ async function fetchHalloweenStocks() {
     return result;
 }
 
-async function fetchGag2Stocks() {
+let isCheckingGag2 = false;
 
-    const result = {
-        seeds: [],
-        gear: [],
-        props: [],
-        ids: {
-            seeds: null,
-            gear: null,
-            props: null
-        }
-    };
 
-    const channels = {
-        seeds: client.channels.cache.get("1511902092372213832"),
-        gear: client.channels.cache.get("1511902177067794532"),
-        props: client.channels.cache.get("1515033494307209313")
-    };
-
-    for (const [type, channel] of Object.entries(channels)) {
-
-        if (!channel) {
-            console.log(`❌ GAG2 канал не найден: ${type}`);
-            continue;
-        }
-
-        const messages =
-            await channel.messages.fetch({ limit: 3 });
-
-        const msg =
-            messages
-                .sort(
-                    (a, b) =>
-                    b.createdTimestamp -
-                    a.createdTimestamp
-                )
-                .first();
-
-        if (!msg || !msg.embeds?.length)
-            continue;
-
-        const embed = msg.embeds[0];
-
-        const text =
-            embed.description ||
-            embed.fields?.map(f => f.value).join('\n') ||
-            '';
-
-        result[type] = parseStockText(
-            text
-                .replace(/•/g, '')
-        );
-
-        result.ids[type] = msg.id;
-    }
-
-    return result;
-}
-
-function getPingText(items) {
-
-    const pings = [];
-
-    for (const item of items) {
-
-        const cleanName = item.raw
-            .replace(/[^\p{L}\p{N}\s]/gu, '')
-            .trim();
-
-        if (ROLE_IDS[cleanName]) {
-            pings.push(`<@&${ROLE_IDS[cleanName]}>`);
-        }
-    }
-
-    return [...new Set(pings)].join(' ');
-}
-
-function getGag2PingText(data) {
-
-    const pings = [];
-
-    const allItems = [
-        ...data.seeds,
-        ...data.gear,
-        ...data.props
-    ];
-
-    for (const item of allItems) {
-
-        const cleanName = item.raw
-            .replace(/^[^\p{L}]+/u, '')
-            .trim();
-
-        if (GAG2_ROLE_IDS[cleanName]) {
-            pings.push(`<@&${GAG2_ROLE_IDS[cleanName]}>`);
-        }
-    }
-
-    return [...new Set(pings)].join(' ');
-}
-
-function renderItems(items) {
-
-    if (!items.length) {
-        return 'Nothing today 😔';
-    }
-
-    return items
-        .map(i => {
-
-            const raw = i.raw.replace(
-                /\u26D3(?:\uFE0F)?/g,
-                '\u26D3\uFE0F'
-            );
-
-            return `- ${raw} — ${i.count}`;
-        })
-        .join('\n');
-}
-
-async function sendCombinedEmbed(data) {
-
-    const fields = [];
-
-    if (data.eggs.length > 0) {
-        fields.push({
-            name: "🥚 Bee Eggs",
-            value: renderItems(data.eggs),
-            inline: false
-        });
-    }
-
-    if (data.seeds.length > 0) {
-        fields.push({
-            name: "🌱 Honey Seeds",
-            value: renderItems(data.seeds),
-            inline: false
-        });
-    }
-
-    if (data.coin.length > 0) {
-        fields.push({
-            name: "🪙 Honey Coin Shop",
-            value: renderItems(data.coin),
-            inline: false
-        });
-    }
-
-    if (data.jelly.length > 0) {
-        fields.push({
-            name: "🍯 Royal Jelly Shop",
-            value: renderItems(data.jelly),
-            inline: false
-        });
-    }
-
-    const embed = {
-        title: "🌱 GROW A GARDEN | BEE MARKET STOCK",
-        color: 0xff9900,
-        fields,
-        footer: {
-            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-        },
-        timestamp: new Date().toISOString()
-    };
-
-    const pingText = getPingText([
-        ...data.eggs,
-        ...data.seeds,
-        ...data.coin,
-        ...data.jelly
-    ]);
-
-    await sendToWebhooks(
-        {
-            content: pingText || null,
-            embeds: [embed]
-        },
-        [
-            process.env.WEBHOOK_URL,
-            process.env.KIRO_WEBHOOK_URL
-        ]
-    );
-
-    console.log("📦 EVENT STOCK отправлен");
-}
-
-async function sendGag2Embed(data) {
-
-    const fields = [];
-
-    if (data.seeds.length > 0) {
-        fields.push({
-            name: "🌾 SEEDS",
-            value: renderItems(data.seeds),
-            inline: false
-        });
-    }
-
-    if (data.gear.length > 0) {
-        fields.push({
-            name: "⚙️ GEAR",
-            value: renderItems(data.gear),
-            inline: false
-        });
-    }
-
-    if (data.props.length > 0) {
-        fields.push({
-            name: "📦 PROPS",
-            value: renderItems(data.props),
-            inline: false
-        });
-    }
-
-    const embed = {
-        title: "🌱 GROW A GARDEN 2 | STOCK",
-        color: 0x00ff88,
-        fields,
-        footer: {
-            text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-        },
-        timestamp: new Date().toISOString()
-    };
-
-    const pingText = getGag2PingText(data);
-
-    await sendToWebhooks(
-        {
-            content: pingText || null,
-            embeds: [embed]
-        },
-        [
-            process.env.GAG2_WEBHOOK_URL,
-            process.env.KIRO_GAG2_WEBHOOK_URL
-        ]
-    );
-
-    console.log("📦 GAG2 STOCK отправлен");
-}
-
-async function sendHalloweenEmbed(data) {
-
-    const now = new Date();
-
-    const embed = {
-        title: "🎃 GROW A GARDEN | HALLOWEEN STOCK",
-        color: 0xff5a36,
-
-        fields: [
-            {
-                name: "👹 DEMONIC DECOR",
-                value: renderItems(data.decor),
-                inline: false
-            },
-            {
-                name: "🌱 SCARY SEEDS",
-                value: renderItems(data.seeds),
-                inline: false
-            },
-            {
-                name: "🦇 FRIGHTENING FAUNA",
-                value: renderItems(data.fauna),
-                inline: false
-            }
-        ],
-
-        footer: {
-            text: `Last update: ${now.toLocaleTimeString(
-                'en-GB',
-                { timeZone: 'UTC' }
-            )} UTC`
-        },
-
-        timestamp: now.toISOString()
-    };
-
-
-    // ==========================================
-    // 🎃 ПРОВЕРЯЕМ SPOOKY CHEST
-    // ==========================================
-
-    const hasSpookyChest =
-        data.fauna.some(item => {
-
-            const itemName =
-                (item.raw || "")
-                    .toLowerCase();
-
-            return itemName.includes(
-                "spooky chest"
-            );
-        });
-
-
-    // ==========================================
-    // ТВОЙ WEBHOOK
-    // С ПИНГОМ, ЕСЛИ ЕСТЬ HAUNTED HALLOW
-    // ==========================================
-
-    const myPayload = {
-        embeds: [embed]
-    };
-
-
-    if (
-        hasSpookyChest &&
-        process.env.KOTIK_USER_ID
-    ) {
-
-        myPayload.content =
-            `<@${process.env.KOTIK_USER_ID}>`;
-
-        myPayload.allowed_mentions = {
-            users: [
-                process.env.KOTIK_USER_ID
-            ]
-        };
-
-
-        console.log(
-            "🚨 Spooky Chest найден!"
-        );
-
-        console.log(
-            "🔔 Отправляем личный пинг KotikGamerz"
-        );
-    }
-
-
-    await sendToWebhooks(
-        myPayload,
-        [
-            process.env.HALLOWEEN_WEBHOOK_URL
-        ]
-    );
-
-
-    // ==========================================
-    // WEBHOOK KIRO
-    // ВСЕГДА БЕЗ ТВОЕГО ПИНГА
-    // ==========================================
-
-    await sendToWebhooks(
-        {
-            embeds: [embed]
-        },
-        [
-            process.env.KIRO_HALLOWEEN_WEBHOOK_URL
-        ]
-    );
-
-
-    console.log(
-        "🎃 HALLOWEEN STOCK отправлен"
-    );
-}
-
-async function checkAllStocks() {
-
-    if (isChecking) return;
-    isChecking = true;
-
-    try {
-
-        console.log("🔄 Проверка event stock...");
-
-        const data = await fetchAllEmbeds(
-            process.env.EVENTS_CHANNEL_ID
-        );
-
-        if (!data) {
-            console.log("❌ Нет данных");
-            return;
-        }
-
-        const currentState = JSON.stringify(data.ids);
-
-        if (currentState === lastCombinedIds) {
-            console.log("⏸️ Уже обработано");
-            return;
-        }
-
-        lastCombinedIds = currentState;
-
-        await sendCombinedEmbed(data);
-
-    } catch (err) {
-
-        console.error("❌ Ошибка:", err.message);
-
-    } finally {
-
-        isChecking = false;
-    }
-}
+// ======================================================
+// 🌱 GAG2 STOCK CHECK
+// ======================================================
 
 async function checkGag2Stocks() {
 
+    if (isCheckingGag2) {
+
+        console.log(
+            "⏳ GAG2 уже проверяется..."
+        );
+
+        return;
+    }
+
+
+    isCheckingGag2 = true;
+
+
     try {
 
-        console.log("🌱 Проверка GAG2...");
+        console.log(
+            "🌱 Проверка GAG2..."
+        );
+
 
         const data =
             await fetchGag2Stocks();
+
 
         if (
             !data.ids.seeds &&
             !data.ids.gear &&
             !data.ids.props
         ) {
-            console.log("❌ GAG2 данных нет");
+
+            console.log(
+                "❌ GAG2 данных нет"
+            );
+
             return;
         }
 
+
         const currentState =
-            JSON.stringify(data.ids);
+            JSON.stringify(
+                data.ids
+            );
+
 
         if (
             currentState ===
@@ -820,10 +455,15 @@ async function checkGag2Stocks() {
             return;
         }
 
+
         lastGag2CombinedIds =
             currentState;
 
-        await sendGag2Embed(data);
+
+        await sendGag2Embed(
+            data
+        );
+
 
     } catch (err) {
 
@@ -831,8 +471,19 @@ async function checkGag2Stocks() {
             "❌ GAG2 ошибка:",
             err.message
         );
+
+
+    } finally {
+
+        isCheckingGag2 = false;
     }
 }
+
+
+
+// ======================================================
+// 🎃 HALLOWEEN STOCK CHECK
+// ======================================================
 
 async function checkHalloweenStocks() {
 
@@ -845,26 +496,29 @@ async function checkHalloweenStocks() {
         return;
     }
 
+
     /*
         Halloween stock обновляется
         каждые 5 минут.
 
         Проверяем в минуту обновления
-        и ещё раз через минуту,
-        если три сообщения пришли
-        не одновременно.
+        и ещё раз через минуту.
     */
+
 
     const minute =
         new Date().getUTCMinutes();
 
+
     const minuteInCycle =
         minute % 5;
+
 
     if (
         minuteInCycle !== 0 &&
         minuteInCycle !== 1
     ) {
+
         return;
     }
 
@@ -901,6 +555,7 @@ async function checkHalloweenStocks() {
 
 
         // Ждём все три сообщения
+
         if (
             types.some(
                 type =>
@@ -917,14 +572,10 @@ async function checkHalloweenStocks() {
 
 
         /*
-            Все три сообщения одного
-            рестока должны прийти
-            почти одновременно.
-
-            Если одно уже новое,
-            а остальные старые,
-            бот ничего не отправит.
+            Проверяем, что все три сообщения
+            относятся к одному рестоку.
         */
+
 
         const timestamps =
             types.map(
@@ -1006,16 +657,53 @@ async function checkHalloweenStocks() {
     }
 }
 
+
+
+// ======================================================
+// 🧠 SMART SCHEDULER
+// ======================================================
+
+let schedulerStarted = false;
+
+
 function startSmartScheduler() {
+
+    /*
+        Защита от случайного двойного запуска.
+
+        Даже если ready каким-то образом
+        вызовется повторно — второго scheduler
+        больше не появится.
+    */
+
+    if (schedulerStarted) {
+
+        console.log(
+            "⏸️ Smart scheduler уже запущен"
+        );
+
+        return;
+    }
+
+
+    schedulerStarted = true;
+
 
     const scheduleNext = () => {
 
-        const now = new Date();
+        const now =
+            new Date();
+
+
         const seconds =
             now.getSeconds();
 
-        // Проверяем стоки
-        // каждую минуту на :30
+
+        /*
+            Проверяем каждую минуту
+            примерно на :30.
+        */
+
         const delay =
             seconds < 30
                 ? (30 - seconds) * 1000
@@ -1023,24 +711,64 @@ function startSmartScheduler() {
 
 
         console.log(
-            `⏱️ Следующая проверка через ${
-                delay / 1000
-            }s`
+            `⏱️ Следующая проверка через ${delay / 1000}s`
         );
 
 
         setTimeout(() => {
 
-            Promise.all([
+            /*
+                КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:
+
+                Следующий таймер создаём СРАЗУ.
+
+                Мы больше НЕ ждём окончания
+                Discord fetch.
+
+                Поэтому даже если Discord.js
+                решит ждать свой Sublimit
+                3598000 ms, сам scheduler
+                не умрёт вместе с ним.
+            */
+
+            scheduleNext();
+
+
+            Promise.allSettled([
+
                 checkAllStocks(),
+
                 checkGag2Stocks(),
+
                 checkHalloweenStocks()
+
             ])
-            .finally(() => {
+            .then(results => {
 
-                scheduleNext();
+                const names = [
+                    "EVENT",
+                    "GAG2",
+                    "HALLOWEEN"
+                ];
 
+
+                results.forEach(
+                    (result, index) => {
+
+                        if (
+                            result.status ===
+                            "rejected"
+                        ) {
+
+                            console.error(
+                                `❌ ${names[index]} scheduler error:`,
+                                result.reason
+                            );
+                        }
+                    }
+                );
             });
+
 
         }, delay);
     };
@@ -1050,63 +778,117 @@ function startSmartScheduler() {
 }
 
 
-client.on('ready', async () => {
 
-    console.log(
-        `✅ READY! Залогинен как ${client.user.tag}`
-    );
+// ======================================================
+// ✅ DISCORD READY
+// ======================================================
 
-    console.log(
-        "🧠 Smart scheduler запущен"
-    );
-
-    startSmartScheduler();
-});
-
-client.on('error', err => {
-
-    console.error(
-        "❌ CLIENT ERROR:",
-        err
-    );
-});
-
-
-client.on('disconnect', () => {
-
-    console.log(
-        "🔌 DISCORD CLIENT DISCONNECTED"
-    );
-});
-
-
-client.on('rateLimit', info => {
-
-    console.log(
-        "⏳ DISCORD RATE LIMIT:",
-        info
-    );
-});
-
-
-client.on('debug', info => {
-
-    const text =
-        String(info);
-
-    if (
-        text.includes('429') ||
-        text.toLowerCase().includes('rate limit') ||
-        text.toLowerCase().includes('ratelimit') ||
-        text.toLowerCase().includes('sublimit')
-    ) {
+client.on(
+    'ready',
+    async () => {
 
         console.log(
-            "🐛 DISCORD DEBUG:",
-            text
+            `✅ READY! Залогинен как ${client.user.tag}`
+        );
+
+
+        console.log(
+            "🧠 Smart scheduler запускается"
+        );
+
+
+        startSmartScheduler();
+    }
+);
+
+
+
+// ======================================================
+// ❌ CLIENT ERROR
+// ======================================================
+
+client.on(
+    'error',
+    err => {
+
+        console.error(
+            "❌ CLIENT ERROR:",
+            err
         );
     }
-});
+);
+
+
+
+// ======================================================
+// 🔌 DISCONNECT
+// ======================================================
+
+client.on(
+    'disconnect',
+    () => {
+
+        console.log(
+            "🔌 DISCORD CLIENT DISCONNECTED"
+        );
+    }
+);
+
+
+
+// ======================================================
+// ⏳ RATE LIMIT EVENT
+// ======================================================
+
+client.on(
+    'rateLimit',
+    info => {
+
+        console.log(
+            "⏳ DISCORD RATE LIMIT:",
+            info
+        );
+    }
+);
+
+
+
+// ======================================================
+// 🐛 DISCORD DEBUG
+// ======================================================
+
+client.on(
+    'debug',
+    info => {
+
+        const text =
+            String(info);
+
+
+        const lower =
+            text.toLowerCase();
+
+
+        if (
+            text.includes('429') ||
+            lower.includes('rate limit') ||
+            lower.includes('ratelimit') ||
+            lower.includes('sublimit')
+        ) {
+
+            console.log(
+                "🐛 DISCORD DEBUG:",
+                text
+            );
+        }
+    }
+);
+
+
+
+// ======================================================
+// 🚀 DISCORD START
+// ======================================================
 
 async function startDiscord() {
 
@@ -1118,9 +900,9 @@ async function startDiscord() {
     );
 
 
-    // ==========================================
-    // 0. УЗНАЁМ ПУБЛИЧНЫЙ OUTBOUND IP RENDER
-    // ==========================================
+    // ==================================================
+    // 🌍 OUTBOUND IP RENDER
+    // ==================================================
 
     try {
 
@@ -1140,7 +922,8 @@ async function startDiscord() {
 
         console.log(
             "🌍 RENDER OUTBOUND IP:",
-            ipResponse.data?.ip || ipResponse.data
+            ipResponse.data?.ip ||
+            ipResponse.data
         );
 
 
@@ -1153,9 +936,10 @@ async function startDiscord() {
     }
 
 
-    // ==========================================
-    // 1. ПРОВЕРЯЕМ RENDER -> DISCORD REST API
-    // ==========================================
+
+    // ==================================================
+    // 🌐 ПРОВЕРЯЕМ DISCORD API
+    // ==================================================
 
     try {
 
@@ -1171,6 +955,7 @@ async function startDiscord() {
                     timeout: 15000,
 
                     headers: {
+
                         "User-Agent":
                             "DiscordBot (https://example.com, 1.0)"
                     }
@@ -1186,7 +971,8 @@ async function startDiscord() {
 
         console.log(
             "🌐 Gateway URL:",
-            response.data?.url || response.data
+            response.data?.url ||
+            response.data
         );
 
 
@@ -1199,31 +985,40 @@ async function startDiscord() {
 
         console.error(
             "Axios code:",
-            err.code || "нет"
+            err.code ||
+            "нет"
         );
 
 
         console.error(
             "HTTP status:",
-            err.response?.status || "нет ответа"
+            err.response?.status ||
+            "нет ответа"
         );
 
 
         console.error(
             "Discord response:",
-            err.response?.data || "нет тела ответа"
+            err.response?.data ||
+            "нет тела ответа"
         );
 
 
         console.error(
             "Retry-After:",
-            err.response?.headers?.["retry-after"] || "нет"
+            err.response
+                ?.headers
+                ?.["retry-after"] ||
+            "нет"
         );
 
 
         console.error(
             "CF-Ray:",
-            err.response?.headers?.["cf-ray"] || "нет"
+            err.response
+                ?.headers
+                ?.["cf-ray"] ||
+            "нет"
         );
 
 
@@ -1233,13 +1028,22 @@ async function startDiscord() {
         );
 
 
+        /*
+            Если Discord сейчас режет
+            Render IP — НЕ пытаемся логиниться.
+
+            Не долбимся повторно.
+            Просто ждём следующего deploy/restart.
+        */
+
         return;
     }
 
 
-    // ==========================================
-    // 2. ПРОБУЕМ LOGIN
-    // ==========================================
+
+    // ==================================================
+    // 🔐 LOGIN
+    // ==================================================
 
     console.log(
         "🔐 Запускаю client.login()..."
@@ -1252,19 +1056,25 @@ async function startDiscord() {
     try {
 
         const loginTimeout =
-            new Promise((_, reject) => {
+            new Promise(
+                (_, reject) => {
 
-                loginTimeoutId =
-                    setTimeout(() => {
+                    loginTimeoutId =
+                        setTimeout(
+                            () => {
 
-                        reject(
-                            new Error(
-                                "client.login() завис больше чем на 30 секунд"
-                            )
+                                reject(
+                                    new Error(
+                                        "client.login() завис больше чем на 30 секунд"
+                                    )
+                                );
+
+                            },
+
+                            30000
                         );
-
-                    }, 30000);
-            });
+                }
+            );
 
 
         await Promise.race([
@@ -1306,13 +1116,16 @@ async function startDiscord() {
         );
 
 
-        console.error(err);
+        console.error(
+            err
+        );
     }
 }
 
 
-// ==========================================
-// ЗАПУСК DISCORD
-// ==========================================
+
+// ======================================================
+// ▶️ ЗАПУСК
+// ======================================================
 
 startDiscord();
